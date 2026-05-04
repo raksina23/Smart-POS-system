@@ -44,10 +44,7 @@ export default function InventoryPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`ต้องการลบ "${name}" หรือไม่? / Delete this product?`)) return;
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("products").delete().eq("id", id);
 
     if (error) {
       alert("เกิดข้อผิดพลาด / Error: " + error.message);
@@ -66,40 +63,65 @@ export default function InventoryPage() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <Navbar role="Admin" />
-      <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
+
+      <div className="max-w-2xl mx-auto px-3 py-4 sm:px-6 sm:py-6 space-y-3">
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-2xl font-bold text-gray-800">
-            คลังสินค้า <span className="text-gray-400 font-normal text-lg">(Inventory)</span>
-          </h1>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
+              คลังสินค้า
+            </h1>
+            <p className="text-sm text-gray-400">Inventory</p>
+          </div>
+          {/* Desktop: show button here */}
           <button
             onClick={() => router.push("/inventory/add")}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition"
+            className="hidden sm:flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition"
           >
-            + เพิ่มสินค้า / Add Product
+            + เพิ่มสินค้า / Add
           </button>
         </div>
 
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="ค้นหาชื่อสินค้าหรือบาร์โค้ด / Search by name or barcode..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
-        />
+        {/* Search + Mobile Add button row */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="ค้นหาชื่อ / บาร์โค้ด..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+          />
+          {/* Mobile: compact + button */}
+          <button
+            onClick={() => router.push("/inventory/add")}
+            className="sm:hidden flex-shrink-0 bg-blue-600 text-white w-11 h-11 rounded-xl text-xl font-bold shadow-sm hover:bg-blue-700 transition flex items-center justify-center"
+            aria-label="เพิ่มสินค้า"
+          >
+            +
+          </button>
+        </div>
 
+        {/* Count */}
+        {!loading && (
+          <p className="text-xs text-gray-400 px-1">
+            พบ {filtered.length} รายการ / {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+          </p>
+        )}
+
+        {/* Content */}
         {loading ? (
-          <div className="text-center py-10 text-gray-400">
-            กำลังโหลดข้อมูล... / Loading...
+          <div className="text-center py-16 text-gray-400 text-sm">
+            <div className="text-3xl mb-2">⏳</div>
+            กำลังโหลด... / Loading...
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
+          <div className="text-center py-16 text-gray-400 text-sm">
+            <div className="text-3xl mb-2">📦</div>
             ไม่พบสินค้า / No products found
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {filtered.map((product) => {
               const isLowStock = product.stock_qty <= product.min_stock;
               const today = new Date();
@@ -112,62 +134,84 @@ export default function InventoryPage() {
               return (
                 <div
                   key={product.id}
-                  className="bg-white p-4 rounded-xl shadow-sm border border-gray-100"
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                 >
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-gray-800">{product.name}</p>
+                  {/* Card body */}
+                  <div className="p-4">
+                    {/* Row 1: Name + Stock badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-bold text-gray-800 text-base leading-snug flex-1 min-w-0 truncate">
+                        {product.name}
+                      </p>
+                      <span
+                        className={`flex-shrink-0 text-sm font-semibold px-3 py-0.5 rounded-full whitespace-nowrap ${
+                          isLowStock
+                            ? "bg-orange-100 text-orange-600"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {product.stock_qty} ชิ้น
+                      </span>
+                    </div>
+
+                    {/* Badges */}
+                    {(isLowStock || isExpiringSoon) && (
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {isLowStock && (
                           <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
-                            สต็อกต่ำ / Low Stock
+                            ⚠️ สต็อกต่ำ / Low Stock
                           </span>
                         )}
                         {isExpiringSoon && (
                           <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
-                            ใกล้หมดอายุ / Expiring Soon
+                            🕐 ใกล้หมดอายุ / Expiring Soon
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        บาร์โค้ด / Barcode: {product.barcode} • ราคา / Price: ฿{product.price} • ทุน / Cost: ฿{product.cost}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        หมวดหมู่ / Category: {product.category}
-                      </p>
-                    </div>
+                    )}
 
-                    <div className="text-right flex-shrink-0">
-                      <p className={`text-sm font-semibold px-3 py-1 rounded-full ${
-                        isLowStock
-                          ? "bg-orange-100 text-orange-600"
-                          : "bg-gray-100 text-gray-700"
-                      }`}>
-                        สต็อก / Stock: {product.stock_qty}
+                    {/* Row 2: Meta info */}
+                    <div className="mt-2 space-y-0.5">
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">Barcode:</span> {product.barcode}
+                        <span className="mx-1.5 text-gray-300">•</span>
+                        <span className="text-gray-400">หมวด:</span> {product.category}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">ราคา:</span>{" "}
+                        <span className="font-medium text-gray-700">฿{product.price}</span>
+                        <span className="mx-1.5 text-gray-300">•</span>
+                        <span className="text-gray-400">ทุน:</span>{" "}
+                        <span className="font-medium text-gray-700">฿{product.cost}</span>
+                        <span className="mx-1.5 text-gray-300">•</span>
+                        <span className="text-gray-400">กำไร:</span>{" "}
+                        <span className="font-medium text-green-600">
+                          ฿{product.price - product.cost}
+                        </span>
                       </p>
                       {product.expiration_date && (
-                        <p className={`text-xs mt-1 font-medium ${
-                          isExpiringSoon ? "text-red-500" : "text-gray-400"
-                        }`}>
+                        <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
                           EXP: {product.expiration_date}
-                          {isExpiringSoon && ` (อีก / In ${daysLeft} วัน / days)`}
+                          {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                  {/* Action buttons */}
+                  <div className="flex border-t border-gray-100">
                     <button
                       onClick={() => router.push(`/inventory/edit/${product.id}`)}
-                      className="flex-1 text-sm text-blue-600 border border-blue-200 py-1.5 rounded-lg hover:bg-blue-50 transition"
+                      className="flex-1 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1"
                     >
-                      ✏️ แก้ไข / Edit
+                      ✏️ <span>แก้ไข / Edit</span>
                     </button>
+                    <div className="w-px bg-gray-100" />
                     <button
                       onClick={() => handleDelete(product.id, product.name)}
-                      className="flex-1 text-sm text-red-500 border border-red-200 py-1.5 rounded-lg hover:bg-red-50 transition"
+                      className="flex-1 py-3 text-sm font-medium text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1"
                     >
-                      🗑️ ลบ / Delete
+                      🗑️ <span>ลบ / Delete</span>
                     </button>
                   </div>
                 </div>
@@ -175,6 +219,9 @@ export default function InventoryPage() {
             })}
           </div>
         )}
+
+        {/* Bottom padding for mobile scroll */}
+        <div className="h-4" />
       </div>
     </div>
   );

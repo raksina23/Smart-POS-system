@@ -39,8 +39,6 @@ export default function DashboardPage() {
 
   const [discountedItems, setDiscountedItems] = useState<Record<string, number>>({});
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-
-  // state สำหรับเลือกสินค้าที่จะสั่งซื้อ
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -181,7 +179,7 @@ export default function DashboardPage() {
 
     setDiscountedItems({ ...discountedItems, [id]: percent });
     setOpenDropdown(null);
-    alert(`ลดราคา "${product.name}" ${percent}% เรียบร้อย! / Discount applied!\nราคาใหม่ / New price: ฿${newPrice}`);
+    alert(`ลดราคา "${product.name}" ${percent}% เรียบร้อย!\nราคาใหม่: ฿${newPrice}`);
   };
 
   const toggleSelect = (id: string) => {
@@ -199,7 +197,7 @@ export default function DashboardPage() {
   const handleCreatePurchaseOrder = () => {
     const selected = lowStockProducts.filter((p) => selectedItems[p.id]);
     if (selected.length === 0) {
-      alert("กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ / Please select products to reorder");
+      alert("กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ");
       return;
     }
     localStorage.setItem("purchaseOrderItems", JSON.stringify(selected));
@@ -211,152 +209,202 @@ export default function DashboardPage() {
   const timeStr = now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans pb-10 text-gray-800">
+    <div className="min-h-screen bg-gray-50 font-sans pb-16 text-gray-800">
       <Navbar role="Admin" />
 
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 space-y-4 md:space-y-6">
 
-        {/* Header */}
-        <div className="flex justify-between items-center mt-4">
+        {/* ─── Header ─── */}
+        <div className="flex flex-wrap items-start justify-between gap-2 mt-2">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              ภาพรวมระบบ <span className="text-gray-400 font-normal text-lg">(Dashboard)</span>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
+              ภาพรวมระบบ{" "}
+              <span className="text-gray-400 font-normal text-base sm:text-lg">
+                (Dashboard)
+              </span>
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              อัปเดตล่าสุด / Last updated: {timeStr} น.
+            <p className="text-xs text-gray-500 mt-0.5">
+              อัปเดตล่าสุด: {timeStr} น.
             </p>
           </div>
-          <span className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm">
+          <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm whitespace-nowrap">
             ผู้ดูแลระบบ (Admin)
           </span>
         </div>
 
         {loading ? (
-          <div className="text-center py-20 text-gray-400">
-            กำลังโหลดข้อมูล... / Loading...
+          <div className="text-center py-20 text-gray-400 text-sm">
+            กำลังโหลดข้อมูล...
           </div>
         ) : (
           <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">ยอดขายวันนี้ / Today's Sales</p>
-                <p className="text-2xl font-black text-blue-600">฿{todaySales.toLocaleString()}</p>
-              </div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">จำนวนบิล / Bills Today</p>
-                <p className="text-2xl font-black text-indigo-600">{todayBills}</p>
-              </div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">กำไรวันนี้ / Today's Profit</p>
-                <p className="text-2xl font-black text-emerald-500">฿{todayProfit.toLocaleString()}</p>
-              </div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">ยอดขายเดือนนี้ / Monthly Sales</p>
-                <p className="text-2xl font-black text-blue-800">฿{monthSales.toLocaleString()}</p>
-              </div>
+            {/* ─── Summary Cards ─── */}
+            {/* บนมือถือ: 2×2, บน tablet ขึ้นไป: 4 คอลัมน์ */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <SummaryCard
+                label="ยอดขายวันนี้"
+                sublabel="Today's Sales"
+                value={`฿${todaySales.toLocaleString()}`}
+                color="text-blue-600"
+              />
+              <SummaryCard
+                label="จำนวนบิล"
+                sublabel="Bills Today"
+                value={String(todayBills)}
+                color="text-indigo-600"
+              />
+              <SummaryCard
+                label="กำไรวันนี้"
+                sublabel="Today's Profit"
+                value={`฿${todayProfit.toLocaleString()}`}
+                color="text-emerald-500"
+              />
+              <SummaryCard
+                label="ยอดขายเดือนนี้"
+                sublabel="Monthly Sales"
+                value={`฿${monthSales.toLocaleString()}`}
+                color="text-blue-800"
+              />
             </div>
 
-            {/* Bar Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <h2 className="text-lg font-bold flex items-center gap-2">
+            {/* ─── Bar Chart ─── */}
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Chart header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
+                <h2 className="text-base sm:text-lg font-bold flex flex-wrap items-center gap-1.5">
                   📊 สถิติยอดขายและกำไรรายเดือน
-                  <span className="text-sm font-normal text-gray-400">(Monthly Sales & Profit)</span>
+                  <span className="text-xs sm:text-sm font-normal text-gray-400">
+                    (Monthly)
+                  </span>
                 </h2>
-                <div className="flex gap-4 p-2 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2 text-xs font-bold">
-                    <span className="w-3 h-3 bg-blue-500 rounded-full"></span> ยอดขาย / Sales
+                <div className="flex gap-3 p-2 bg-gray-50 rounded-lg self-start sm:self-auto">
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> ยอดขาย
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-bold">
-                    <span className="w-3 h-3 bg-emerald-500 rounded-full"></span> กำไร / Profit
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> กำไร
                   </div>
                 </div>
               </div>
 
-              <div className="relative h-72 w-full mt-4 flex items-end justify-between px-2 pb-6 border-b-2 border-gray-100">
-                {monthlyData.map((data, index) => {
-                  const salesHeight = (data.amount / maxAmount) * 100;
-                  const profitHeight = (data.profit / maxAmount) * 100;
-                  return (
-                    <div key={index} className="flex flex-col items-center flex-1 group">
-                      <div className="flex items-end gap-1.5 h-64 w-full justify-center">
-                        <div style={{ height: `${salesHeight}%` }} className="w-5 md:w-10 bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 relative">
-                          <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
-                            ขาย: ฿{data.amount.toLocaleString()}
-                          </span>
+              {/* Chart bars — ใช้ min-w เพื่อให้ scroll แนวนอนบนมือถือแทนการบีบ */}
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                {/* ใช้ px fixed height แทน % เพื่อให้แท่งกราฟแสดงได้ถูกต้อง */}
+                <div
+                  className="relative flex items-end justify-between gap-1 border-b-2 border-gray-100"
+                  style={{ minWidth: "320px", height: "220px", paddingBottom: "28px" }}
+                >
+                  {monthlyData.map((data, index) => {
+                    const chartHeight = 192; // 220px - 28px padding
+                    const salesH = Math.round((data.amount / maxAmount) * chartHeight);
+                    const profitH = Math.round((data.profit / maxAmount) * chartHeight);
+                    return (
+                      <div key={index} className="flex flex-col items-center flex-1 group min-w-0">
+                        <div
+                          className="flex items-end gap-1 w-full justify-center"
+                          style={{ height: `${chartHeight}px` }}
+                        >
+                          {/* Sales bar */}
+                          <div
+                            style={{ height: `${salesH}px` }}
+                            className="w-4 sm:w-8 md:w-10 bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 relative"
+                          >
+                            <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
+                              ฿{data.amount.toLocaleString()}
+                            </span>
+                          </div>
+                          {/* Profit bar */}
+                          <div
+                            style={{ height: `${profitH}px` }}
+                            className="w-4 sm:w-8 md:w-10 bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all duration-300 relative"
+                          >
+                            <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-emerald-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
+                              ฿{data.profit.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ height: `${profitHeight}%` }} className="w-5 md:w-10 bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all duration-300 relative">
-                          <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-emerald-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
-                            กำไร: ฿{data.profit.toLocaleString()}
-                          </span>
-                        </div>
+                        <span className="text-[10px] sm:text-xs font-bold text-gray-500 mt-2 tracking-tighter">
+                          {data.month}
+                        </span>
                       </div>
-                      <span className="text-xs font-bold text-gray-500 mt-4 uppercase tracking-tighter">{data.month}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Alerts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* ─── Alert Panels ─── */}
+            {/* stack บนมือถือ, side-by-side บน md ขึ้นไป */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
               {/* สินค้าใกล้หมดอายุ */}
-              <div className="bg-red-50 border-t-4 border-red-500 p-5 rounded-b-2xl shadow-sm">
+              <div className="bg-red-50 border-t-4 border-red-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-red-700 font-bold text-lg flex items-center gap-2">
-                    <span className="text-xl">⚠️</span>
-                    สินค้าใกล้หมดอายุ
-                    <span className="text-sm font-normal">(Expiring Soon)</span>
+                  <h2 className="text-red-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>
+                      สินค้าใกล้หมดอายุ{" "}
+                      <span className="text-xs font-normal hidden sm:inline">(Expiring Soon)</span>
+                    </span>
                   </h2>
-                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                    {expiringProducts.length} รายการ / items
+                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shrink-0">
+                    {expiringProducts.length} รายการ
                   </span>
                 </div>
 
                 {expiringProducts.length === 0 ? (
                   <p className="text-sm text-red-400 text-center py-4">
-                    ไม่มีสินค้าใกล้หมดอายุ / No expiring products
+                    ไม่มีสินค้าใกล้หมดอายุ
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {expiringProducts.map((item) => (
-                      <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-red-100 flex justify-between items-center">
-                        <div>
-                          <p className="font-bold text-gray-800">{item.name}</p>
-                          <p className="text-xs text-gray-500">
-                            คงเหลือ / Stock: {item.stock_qty} ชิ้น | ฿{item.price} | อีก / In {item.daysLeft} วัน / days
-                          </p>
-                        </div>
-                        <div className="relative">
-                          {discountedItems[item.id] ? (
-                            <span className="bg-green-100 text-green-700 border border-green-200 text-xs font-bold px-4 py-2 rounded-lg">
-                              ✓ ลด {discountedItems[item.id]}% แล้ว
-                            </span>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => setOpenDropdown(openDropdown === item.id ? null : item.id)}
-                                className="bg-red-500 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-red-600 shadow-sm transition-all"
-                              >
-                                🏷️ ลดราคา / Discount ▾
-                              </button>
-                              {openDropdown === item.id && (
-                                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden w-36">
-                                  {[50, 30, 25].map((percent) => (
-                                    <button
-                                      key={percent}
-                                      onClick={() => handleApplyDiscount(item.id, percent)}
-                                      className="w-full text-left px-4 py-2 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
-                                    >
-                                      ลด / Off {percent}%
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </>
-                          )}
+                      <div
+                        key={item.id}
+                        className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-red-100"
+                      >
+                        {/* แบ่ง 2 แถวบนมือถือแทน flex row เดียว */}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-800 text-sm sm:text-base truncate">
+                              {item.name}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              คงเหลือ {item.stock_qty} ชิ้น · ฿{item.price} · อีก{" "}
+                              <span className="font-bold text-red-600">{item.daysLeft} วัน</span>
+                            </p>
+                          </div>
+                          <div className="relative self-start sm:self-auto shrink-0">
+                            {discountedItems[item.id] ? (
+                              <span className="bg-green-100 text-green-700 border border-green-200 text-xs font-bold px-3 py-1.5 rounded-lg inline-block">
+                                ✓ ลด {discountedItems[item.id]}% แล้ว
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setOpenDropdown(openDropdown === item.id ? null : item.id)
+                                  }
+                                  className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-600 shadow-sm transition-all"
+                                >
+                                  🏷️ ลดราคา ▾
+                                </button>
+                                {openDropdown === item.id && (
+                                  <div className="absolute left-0 sm:right-0 sm:left-auto mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden w-32">
+                                    {[50, 30, 25].map((percent) => (
+                                      <button
+                                        key={percent}
+                                        onClick={() => handleApplyDiscount(item.id, percent)}
+                                        className="w-full text-left px-4 py-2 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                      >
+                                        ลด {percent}%
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -365,94 +413,121 @@ export default function DashboardPage() {
               </div>
 
               {/* สินค้าสต็อกต่ำ */}
-              <div className="bg-orange-50 border-t-4 border-orange-500 p-5 rounded-b-2xl shadow-sm">
+              <div className="bg-orange-50 border-t-4 border-orange-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-orange-700 font-bold text-lg flex items-center gap-2">
-                    <span className="text-xl">📦</span>
-                    สินค้าสต๊อกต่ำ
-                    <span className="text-sm font-normal">(Low Stock)</span>
+                  <h2 className="text-orange-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
+                    <span>📦</span>
+                    <span>
+                      สินค้าสต๊อกต่ำ{" "}
+                      <span className="text-xs font-normal hidden sm:inline">(Low Stock)</span>
+                    </span>
                   </h2>
-                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                    {lowStockProducts.length} รายการ / items
+                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shrink-0">
+                    {lowStockProducts.length} รายการ
                   </span>
                 </div>
 
                 {lowStockProducts.length === 0 ? (
                   <p className="text-sm text-orange-400 text-center py-4">
-                    สต็อกสินค้าปกติทุกรายการ / All stock levels normal
+                    สต็อกสินค้าปกติทุกรายการ
                   </p>
                 ) : (
                   <>
-                    {/* ปุ่มเลือกทั้งหมด */}
                     <div className="flex justify-between items-center mb-3">
                       <button
                         onClick={selectAll}
                         className="text-xs text-orange-600 font-bold hover:underline"
                       >
-                        เลือกทั้งหมด / Select All
+                        เลือกทั้งหมด
                       </button>
                       {selectedCount > 0 && (
                         <span className="text-xs text-orange-500 font-medium">
-                          เลือกแล้ว {selectedCount} รายการ / {selectedCount} selected
+                          เลือกแล้ว {selectedCount} รายการ
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       {lowStockProducts.map((item) => (
                         <div
                           key={item.id}
                           onClick={() => toggleSelect(item.id)}
-                          className={`bg-white p-4 rounded-xl shadow-sm border cursor-pointer transition-all ${
+                          className={`bg-white p-3 sm:p-4 rounded-xl shadow-sm border cursor-pointer transition-all ${
                             selectedItems[item.id]
                               ? "border-orange-400 ring-2 ring-orange-200"
                               : "border-orange-100 hover:border-orange-300"
                           }`}
                         >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                              {/* Checkbox */}
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                                 selectedItems[item.id]
                                   ? "bg-orange-500 border-orange-500"
                                   : "border-gray-300"
-                              }`}>
-                                {selectedItems[item.id] && (
-                                  <span className="text-white text-xs font-bold">✓</span>
-                                )}
-                              </div>
-                              <div>
-                                <p className="font-bold text-gray-800">{item.name}</p>
-                                <p className="text-xs font-bold text-orange-600">
-                                  เหลือเพียง / Only {item.stock_qty} ชิ้น (ขั้นต่ำ / Min: {item.min_stock})
-                                </p>
-                              </div>
+                              }`}
+                            >
+                              {selectedItems[item.id] && (
+                                <span className="text-white text-xs font-bold">✓</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-gray-800 text-sm sm:text-base truncate">
+                                {item.name}
+                              </p>
+                              <p className="text-xs font-bold text-orange-600">
+                                เหลือ {item.stock_qty} ชิ้น{" "}
+                                <span className="font-normal text-gray-400">
+                                  (ขั้นต่ำ {item.min_stock})
+                                </span>
+                              </p>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
 
-                    {/* ปุ่มสร้างใบสั่งซื้อ */}
                     <button
                       onClick={handleCreatePurchaseOrder}
                       disabled={selectedCount === 0}
                       className={`w-full mt-4 font-bold py-3 rounded-xl text-sm transition ${
                         selectedCount > 0
-                          ? "bg-orange-500 text-white hover:bg-orange-600"
+                          ? "bg-orange-500 text-white hover:bg-orange-600 active:scale-95"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
-                      📋 สร้างใบสั่งซื้อ / Create Purchase Order ({selectedCount})
+                      📋 สร้างใบสั่งซื้อ ({selectedCount} รายการ)
                     </button>
                   </>
                 )}
               </div>
-
             </div>
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Helper Component ── */
+function SummaryCard({
+  label,
+  sublabel,
+  value,
+  color,
+}: {
+  label: string;
+  sublabel: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+      {/* label บนมือถือแสดงแค่ภาษาไทย, บน sm ขึ้นไปแสดงทั้งคู่ */}
+      <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide mb-1 leading-snug">
+        {label}
+        <span className="hidden sm:inline"> / {sublabel}</span>
+      </p>
+      <p className={`text-lg sm:text-2xl font-black ${color} leading-tight`}>{value}</p>
     </div>
   );
 }

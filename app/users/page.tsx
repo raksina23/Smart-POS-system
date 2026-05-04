@@ -55,7 +55,6 @@ export default function UserManagementPage() {
     }
 
     setSaving(true);
-
     try {
       const res = await fetch("/api/create-user", {
         method: "POST",
@@ -86,16 +85,12 @@ export default function UserManagementPage() {
   const handleDelete = async (id: string, email: string) => {
     if (!confirm(`ต้องการลบผู้ใช้ "${email}" หรือไม่?`)) return;
 
-    const { error } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
 
     if (error) {
       alert("เกิดข้อผิดพลาด: " + error.message);
       return;
     }
-
     fetchUsers();
   };
 
@@ -112,89 +107,95 @@ export default function UserManagementPage() {
       alert("เกิดข้อผิดพลาด: " + error.message);
       return;
     }
-
     fetchUsers();
   };
 
   const adminCount = users.filter((u) => u.role === "admin").length;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans">
+    <div className="min-h-screen bg-gray-50 font-sans">
       <Navbar role="admin" />
-      <div className="max-w-4xl mx-auto space-y-4">
+
+      <div className="max-w-2xl mx-auto px-3 py-4 sm:px-6 sm:py-6 space-y-3">
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-2xl font-bold text-gray-800">
-            จัดการผู้ใช้งาน (Users)
-          </h1>
-          <div className="flex items-center gap-3">
-            <span className="bg-gray-100 text-gray-600 text-sm px-3 py-1.5 rounded-lg font-medium">
-              ทั้งหมด {users.length} คน
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
+              จัดการผู้ใช้งาน
+            </h1>
+            <p className="text-sm text-gray-400">User Management</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="bg-gray-100 text-gray-500 text-xs px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap">
+              {users.length} คน
             </span>
             <button
               onClick={() => { setShowForm(!showForm); setErrors({}); setShowPassword(false); }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition"
+              className="bg-blue-600 text-white px-3.5 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition whitespace-nowrap"
             >
               {showForm ? "✕ ยกเลิก" : "+ เพิ่มผู้ใช้"}
             </button>
           </div>
         </div>
 
-        {/* ฟอร์มเพิ่มผู้ใช้ */}
+        {/* Add User Form */}
         {showForm && (
-          <div className="bg-white rounded-xl border border-blue-100 p-5 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">เพิ่มผู้ใช้ใหม่</h2>
+          <div className="bg-white rounded-2xl border border-blue-100 p-4 sm:p-5 shadow-sm">
+            <h2 className="text-sm font-bold text-gray-700 mb-4">
+              👤 เพิ่มผู้ใช้ใหม่
+            </h2>
             <form onSubmit={handleAddUser} className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="example@email.com"
-                    value={form.email}
-                    onChange={(e) => {
-                      setForm({ ...form, email: e.target.value });
-                      setErrors({ ...errors, email: "" });
-                    }}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                  />
-                  {errors.email && (
-                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">
-                    Password <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="อย่างน้อย 6 ตัวอักษร"
-                      value={form.password}
-                      onChange={(e) => {
-                        setForm({ ...form, password: e.target.value });
-                        setErrors({ ...errors, password: "" });
-                      }}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm pr-16"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
-                    >
-                      {showPassword ? "ซ่อน" : "แสดง"}
-                    </button>
-                  </div>
-                  {errors.password && (
-                    <p className="text-red-500 text-xs mt-1">{errors.password}</p>
-                  )}
-                </div>
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="example@email.com"
+                  value={form.email}
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value });
+                    setErrors({ ...errors, email: "" });
+                  }}
+                  className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                )}
               </div>
 
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="อย่างน้อย 6 ตัวอักษร"
+                    value={form.password}
+                    onChange={(e) => {
+                      setForm({ ...form, password: e.target.value });
+                      setErrors({ ...errors, password: "" });
+                    }}
+                    className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm pr-16"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
+                  >
+                    {showPassword ? "ซ่อน" : "แสดง"}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+                )}
+              </div>
+
+              {/* Role */}
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">
                   Role
@@ -202,25 +203,26 @@ export default function UserManagementPage() {
                 <select
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="w-full md:w-48 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+                  className="w-full sm:w-48 px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
                 >
                   <option value="cashier">Cashier</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-1">
+              {/* Buttons */}
+              <div className="flex gap-2 pt-1">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
+                  className="flex-1 sm:flex-none bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
                 >
-                  {saving ? "กำลังบันทึก..." : "บันทึก"}
+                  {saving ? "กำลังบันทึก..." : "💾 บันทึก"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowForm(false); setErrors({}); setShowPassword(false); }}
-                  className="border border-gray-300 text-gray-600 px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+                  className="flex-1 sm:flex-none border border-gray-300 text-gray-600 px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
                 >
                   ยกเลิก
                 </button>
@@ -231,70 +233,80 @@ export default function UserManagementPage() {
 
         {/* User List */}
         {loading ? (
-          <div className="text-center py-20 text-gray-400">กำลังโหลดข้อมูล...</div>
+          <div className="text-center py-16 text-gray-400 text-sm">
+            <div className="text-3xl mb-2">⏳</div>
+            กำลังโหลดข้อมูล...
+          </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">ไม่พบข้อมูลผู้ใช้</div>
+          <div className="text-center py-16 text-gray-400 text-sm">
+            <div className="text-3xl mb-2">👤</div>
+            ไม่พบข้อมูลผู้ใช้
+          </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="divide-y divide-gray-100">
               {users.map((user) => {
                 const isOnlyAdmin = user.role === "admin" && adminCount <= 1;
                 const avatarLetter = (user.email ?? "?").charAt(0).toUpperCase();
 
                 return (
-                  <div
-                    key={user.id}
-                    className="p-4 flex justify-between items-center hover:bg-gray-50"
-                  >
+                  <div key={user.id} className="p-4 hover:bg-gray-50 transition">
+
+                    {/* Row 1: Avatar + Email + Role badge */}
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                      <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm ${
                         user.role === "admin"
                           ? "bg-blue-100 text-blue-600"
                           : "bg-gray-100 text-gray-600"
                       }`}>
                         {avatarLetter}
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">{user.email}</p>
-                        <p className="text-xs text-gray-400 font-mono">
-                          {user.id.slice(0, 8)}...
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-gray-800 text-sm truncate">
+                            {user.email}
+                          </p>
+                          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full flex-shrink-0 ${
+                            user.role === "admin"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {user.role === "admin" ? "Admin" : "Cashier"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 font-mono mt-0.5">
+                          ID: {user.id.slice(0, 8)}...
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium px-3 py-1 rounded-full ${
-                        user.role === "admin"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}>
-                        {user.role === "admin" ? "Admin" : "Cashier"}
-                      </span>
-
+                    {/* Row 2: Action buttons */}
+                    <div className="flex gap-2 mt-3 pl-13">
                       <button
                         onClick={() => handleChangeRole(user.id, user.role)}
                         disabled={isOnlyAdmin}
-                        className={`text-xs px-3 py-1 rounded-lg border transition ${
+                        className={`flex-1 py-2 rounded-xl text-xs font-medium border transition ${
                           isOnlyAdmin
-                            ? "text-gray-300 border-gray-100 cursor-not-allowed"
-                            : "text-blue-500 border-blue-200 hover:bg-blue-50"
+                            ? "text-gray-300 border-gray-100 cursor-not-allowed bg-gray-50"
+                            : "text-blue-500 border-blue-200 hover:bg-blue-50 active:bg-blue-100"
                         }`}
                       >
                         เปลี่ยน Role
                       </button>
-
                       <button
                         onClick={() => handleDelete(user.id, user.email)}
                         disabled={isOnlyAdmin}
-                        className={`text-xs px-3 py-1 rounded-lg border transition ${
+                        className={`flex-1 py-2 rounded-xl text-xs font-medium border transition ${
                           isOnlyAdmin
-                            ? "text-gray-300 border-gray-100 cursor-not-allowed"
-                            : "text-red-500 border-red-200 hover:bg-red-50"
+                            ? "text-gray-300 border-gray-100 cursor-not-allowed bg-gray-50"
+                            : "text-red-500 border-red-200 hover:bg-red-50 active:bg-red-100"
                         }`}
                       >
-                        ลบ
+                        🗑️ ลบผู้ใช้
                       </button>
                     </div>
+
                   </div>
                 );
               })}
@@ -302,8 +314,8 @@ export default function UserManagementPage() {
           </div>
         )}
 
-        <p className="text-xs text-gray-400 text-center">
-          หมายเหตุ: ไม่สามารถลบหรือเปลี่ยน Role ของ Admin คนสุดท้ายได้
+        <p className="text-xs text-gray-400 text-center pb-4">
+          ⚠️ ไม่สามารถลบหรือเปลี่ยน Role ของ Admin คนสุดท้ายได้
         </p>
       </div>
     </div>
