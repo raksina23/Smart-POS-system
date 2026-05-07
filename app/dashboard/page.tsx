@@ -206,7 +206,11 @@ export default function DashboardPage() {
 
   const maxAmount = Math.max(...monthlyData.map((d) => d.amount), 1);
   const now = new Date();
-  const timeStr = now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = now.toLocaleTimeString("th-TH", { 
+  hour: "2-digit", 
+  minute: "2-digit",
+  timeZone: "Asia/Bangkok"
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-16 text-gray-800">

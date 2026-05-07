@@ -84,10 +84,13 @@ export default function OrderDetailPage() {
 
   if (!order) return null;
 
-  const dateStr = new Date(order.created_at).toLocaleDateString("th-TH");
+  const dateStr = new Date(order.created_at).toLocaleDateString("th-TH", { 
+  timeZone: "Asia/Bangkok" 
+  });
   const timeStr = new Date(order.created_at).toLocaleTimeString("th-TH", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Bangkok"
   });
 
   // คำนวณกำไรรวมของบิลนี้
@@ -95,6 +98,7 @@ export default function OrderDetailPage() {
     (sum, item) => sum + (item.price_sold - item.cost_sold) * item.quantity,
     0
   );
+  
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">

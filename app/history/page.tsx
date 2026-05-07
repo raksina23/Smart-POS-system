@@ -76,12 +76,16 @@ export default function SalesHistoryPage() {
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("th-TH");
+    return d.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" });
   };
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Bangkok",
+    });
   };
 
   const paymentLabel: Record<string, string> = {
