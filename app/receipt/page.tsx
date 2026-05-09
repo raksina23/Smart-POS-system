@@ -341,9 +341,9 @@ export default function ReceiptPage() {
               )}
             </div>
 
-            <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
+            {/* <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
               พิมพ์ใบเสร็จ
-            </button>
+            </button> */}
             <button
               onClick={handleSellMore}
               className="w-full border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
