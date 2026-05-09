@@ -275,14 +275,14 @@ export default function ReceiptPage() {
                   <p>เลขบัญชี: 123-4-56789-0</p>
                   <p>ชื่อบัญชี: ร้านอัจฉริยะ</p>
                 </div>
-                <div className="border-t border-blue-200 pt-3 space-y-1">
+                {/* <div className="border-t border-blue-200 pt-3 space-y-1">
                   <p className="font-medium text-blue-800">📱 QR Code</p>
                   <div className="flex justify-center">
                     <div className="w-28 h-28 bg-white border-2 border-blue-200 rounded-xl flex items-center justify-center">
                       <p className="text-xs text-gray-400 text-center">QR Code<br />(จำลอง)</p>
                     </div>
                   </div>
-                </div>
+                </div> */}
                 <p className="font-bold text-blue-800 text-center">
                   ยอดที่ต้องชำระ: ฿{total.toFixed(2)}
                 </p>
