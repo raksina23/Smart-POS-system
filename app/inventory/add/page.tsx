@@ -19,12 +19,39 @@ export default function AddProductPage() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: "" });
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Basic validation: image type + max 5MB
+    if (!file.type.startsWith("image/")) {
+      setErrors({ ...errors, photo: "กรุณาเลือกไฟล์รูปภาพ / Please select an image file" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors({ ...errors, photo: "ขนาดไฟล์ต้องไม่เกิน 5MB / File must be under 5MB" });
+      return;
+    }
+
+    setErrors({ ...errors, photo: "" });
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const removePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
   };
 
   const validate = () => {
@@ -52,6 +79,35 @@ export default function AddProductPage() {
       return;
     }
 
+    let photoUrl: string | null = null;
+
+    // Upload photo first, if one was selected
+    if (photoFile) {
+      setUploading(true);
+      const fileExt = photoFile.name.split(".").pop();
+      const fileName = `${form.barcode || Date.now()}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-photos")
+        .upload(fileName, photoFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      setUploading(false);
+
+      if (uploadError) {
+        alert("อัปโหลดรูปไม่สำเร็จ / Photo upload failed: " + uploadError.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("product-photos")
+        .getPublicUrl(fileName);
+
+      photoUrl = urlData.publicUrl;
+    }
+
     const { error } = await supabase
       .from("products")
       .insert({
@@ -63,6 +119,7 @@ export default function AddProductPage() {
         min_stock: Number(form.minStock),
         category: form.category,
         expiration_date: form.expDate,
+        photo_url: photoUrl,
       });
 
     if (error) {
@@ -93,6 +150,43 @@ export default function AddProductPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* รูปสินค้า */}
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <h2 className="text-sm font-bold text-gray-600">
+              รูปสินค้า / Product Photo
+            </h2>
+
+            {photoPreview ? (
+              <div className="relative w-32 h-32">
+                <img
+                  src={photoPreview}
+                  alt="Preview"
+                  className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center shadow"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition text-gray-400 text-xs gap-1">
+                <span className="text-2xl">📷</span>
+                <span>เพิ่มรูป / Add Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+              </label>
+            )}
+            {errors.photo && <p className="text-red-500 text-xs">{errors.photo}</p>}
+          </div>
 
           {/* ข้อมูลทั่วไป */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
@@ -267,9 +361,10 @@ export default function AddProductPage() {
             </button>
             <button
               type="submit"
-              className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition"
+              disabled={uploading}
+              className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
             >
-              บันทึกสินค้า / Save Product
+              {uploading ? "กำลังอัปโหลดรูป... / Uploading..." : "บันทึกสินค้า / Save Product"}
             </button>
           </div>
 
