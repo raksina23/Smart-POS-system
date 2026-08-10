@@ -14,6 +14,7 @@ interface Product {
   min_stock: number;
   category: string;
   expiration_date: string;
+  photo_url: string | null;
 }
 
 export default function InventoryPage() {
@@ -137,64 +138,81 @@ export default function InventoryPage() {
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                 >
                   {/* Card body */}
-                  <div className="p-4">
-                    {/* Row 1: Name + Stock badge */}
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-gray-800 text-base leading-snug flex-1 min-w-0 truncate">
-                        {product.name}
-                      </p>
-                      <span
-                        className={`flex-shrink-0 text-sm font-semibold px-3 py-0.5 rounded-full whitespace-nowrap ${
-                          isLowStock
-                            ? "bg-orange-100 text-orange-600"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {product.stock_qty} ชิ้น
-                      </span>
+                  <div className="p-4 flex gap-3">
+                    {/* Photo thumbnail */}
+                    <div className="flex-shrink-0">
+                      {product.photo_url ? (
+                        <img
+                          src={product.photo_url}
+                          alt={product.name}
+                          className="w-16 h-16 object-cover rounded-lg border border-gray-100"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xl">
+                          📦
+                        </div>
+                      )}
                     </div>
 
-                    {/* Badges */}
-                    {(isLowStock || isExpiringSoon) && (
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {isLowStock && (
-                          <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
-                            ⚠️ สต็อกต่ำ / Low Stock
+                    <div className="flex-1 min-w-0">
+                      {/* Row 1: Name + Stock badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-bold text-gray-800 text-base leading-snug flex-1 min-w-0 truncate">
+                          {product.name}
+                        </p>
+                        <span
+                          className={`flex-shrink-0 text-sm font-semibold px-3 py-0.5 rounded-full whitespace-nowrap ${
+                            isLowStock
+                              ? "bg-orange-100 text-orange-600"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {product.stock_qty} ชิ้น
+                        </span>
+                      </div>
+
+                      {/* Badges */}
+                      {(isLowStock || isExpiringSoon) && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {isLowStock && (
+                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                              ⚠️ สต็อกต่ำ / Low Stock
+                            </span>
+                          )}
+                          {isExpiringSoon && (
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                              🕐 ใกล้หมดอายุ / Expiring Soon
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Row 2: Meta info */}
+                      <div className="mt-2 space-y-0.5">
+                        <p className="text-xs text-gray-500">
+                          <span className="text-gray-400">Barcode:</span> {product.barcode}
+                          <span className="mx-1.5 text-gray-300">•</span>
+                          <span className="text-gray-400">หมวด:</span> {product.category}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          <span className="text-gray-400">ราคา:</span>{" "}
+                          <span className="font-medium text-gray-700">฿{product.price}</span>
+                          <span className="mx-1.5 text-gray-300">•</span>
+                          <span className="text-gray-400">ทุน:</span>{" "}
+                          <span className="font-medium text-gray-700">฿{product.cost}</span>
+                          <span className="mx-1.5 text-gray-300">•</span>
+                          <span className="text-gray-400">กำไร:</span>{" "}
+                          <span className="font-medium text-green-600">
+                            ฿{product.price - product.cost}
                           </span>
-                        )}
-                        {isExpiringSoon && (
-                          <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
-                            🕐 ใกล้หมดอายุ / Expiring Soon
-                          </span>
+                        </p>
+                        {product.expiration_date && (
+                          <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                            EXP: {product.expiration_date}
+                            {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
+                          </p>
                         )}
                       </div>
-                    )}
-
-                    {/* Row 2: Meta info */}
-                    <div className="mt-2 space-y-0.5">
-                      <p className="text-xs text-gray-500">
-                        <span className="text-gray-400">Barcode:</span> {product.barcode}
-                        <span className="mx-1.5 text-gray-300">•</span>
-                        <span className="text-gray-400">หมวด:</span> {product.category}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        <span className="text-gray-400">ราคา:</span>{" "}
-                        <span className="font-medium text-gray-700">฿{product.price}</span>
-                        <span className="mx-1.5 text-gray-300">•</span>
-                        <span className="text-gray-400">ทุน:</span>{" "}
-                        <span className="font-medium text-gray-700">฿{product.cost}</span>
-                        <span className="mx-1.5 text-gray-300">•</span>
-                        <span className="text-gray-400">กำไร:</span>{" "}
-                        <span className="font-medium text-green-600">
-                          ฿{product.price - product.cost}
-                        </span>
-                      </p>
-                      {product.expiration_date && (
-                        <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
-                          EXP: {product.expiration_date}
-                          {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
-                        </p>
-                      )}
                     </div>
                   </div>
 
