@@ -35,7 +35,7 @@ export default function Navbar({ role }: { role: string }) {
     <>
       {/* Navbar Bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center sticky top-0 z-40">
-        <h1 className="text-lg font-bold text-blue-600">Smart POS</h1>
+        <h1 className="text-lg font-bold text-blue-600">Maneewan Shop</h1>
 
         <div className="flex items-center gap-2">
           {/* Desktop links */}
@@ -84,7 +84,7 @@ export default function Navbar({ role }: { role: string }) {
       {/* Mobile Menu Drawer */}
       <div className={`fixed top-0 right-0 h-full w-64 bg-white z-50 shadow-xl transform transition-transform duration-300 md:hidden ${menuOpen ? "translate-x-0" : "translate-x-full"}`}>
         <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="font-bold text-blue-600">Smart POS</h2>
+          <h2 className="font-bold text-blue-600">Maneewan Shop</h2>
           <button
             onClick={() => setMenuOpen(false)}
             className="text-gray-400 hover:text-gray-600 text-xl font-bold"

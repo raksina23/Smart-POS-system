@@ -55,8 +55,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg max-w-sm w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600 mb-2">Smart POS</h1>
-          <p className="text-gray-500">ระบบจัดการหน้าร้านอัจฉริยะ</p>
+          <h1 className="text-3xl font-bold text-blue-600 mb-2">Maneewan Shop</h1>
+          <p className="text-gray-500">ระบบจัดการหน้าร้านมณีวรรณ</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
