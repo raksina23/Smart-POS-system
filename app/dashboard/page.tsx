@@ -291,26 +291,28 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Chart bars — ใช้ min-w เพื่อให้ scroll แนวนอนบนมือถือแทนการบีบ */}
+              {/*
+                Chart bars — height is set with Tailwind's h-* utility on the
+                OUTER container only (change "h-56 sm:h-64" below to make the
+                whole chart taller). Every bar's height is then a PERCENTAGE
+                of that container, computed from the data, so the chart stays
+                proportionally correct automatically — no magic pixel numbers
+                to keep in sync anywhere else.
+              */}
               <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                {/* ใช้ px fixed height แทน % เพื่อให้แท่งกราฟแสดงได้ถูกต้อง */}
                 <div
-                  className="relative flex items-end justify-between gap-1 border-b-2 border-gray-100"
-                  style={{ minWidth: "320px", height: "220px", paddingBottom: "28px" }}
+                  className="relative flex items-end justify-between gap-1 border-b-2 border-gray-100 h-56 sm:h-64 pb-7"
+                  style={{ minWidth: "320px" }}
                 >
                   {monthlyData.map((data, index) => {
-                    const chartHeight = 192; // 220px - 28px padding
-                    const salesH = Math.round((data.amount / maxAmount) * chartHeight);
-                    const profitH = Math.round((data.profit / maxAmount) * chartHeight);
+                    const salesPct = (data.amount / maxAmount) * 100;
+                    const profitPct = (data.profit / maxAmount) * 100;
                     return (
-                      <div key={index} className="flex flex-col items-center flex-1 group min-w-0">
-                        <div
-                          className="flex items-end gap-1 w-full justify-center"
-                          style={{ height: `${chartHeight}px` }}
-                        >
+                      <div key={index} className="flex flex-col items-center flex-1 group min-w-0 h-full">
+                        <div className="flex items-end gap-1 w-full justify-center h-full">
                           {/* Sales bar */}
                           <div
-                            style={{ height: `${salesH}px` }}
+                            style={{ height: `${salesPct}%` }}
                             className="w-4 sm:w-8 md:w-10 bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 relative"
                           >
                             <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
@@ -319,7 +321,7 @@ export default function DashboardPage() {
                           </div>
                           {/* Profit bar */}
                           <div
-                            style={{ height: `${profitH}px` }}
+                            style={{ height: `${profitPct}%` }}
                             className="w-4 sm:w-8 md:w-10 bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all duration-300 relative"
                           >
                             <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-emerald-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
