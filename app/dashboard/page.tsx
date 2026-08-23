@@ -145,7 +145,7 @@ export default function DashboardPage() {
     setTodayProfit(tProfit);
     setMonthSales(mSales);
 
-    const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    const thMonths = ["ม.ค./Jan", "ก.พ./Feb", "มี.ค./Mar", "เม.ย./Apr", "พ.ค./May", "มิ.ย./Jun", "ก.ค./Jul", "ส.ค./Aug", "ก.ย./Sep", "ต.ค./Oct", "พ.ย./Nov", "ธ.ค./Dec"];
     const last6: MonthlyData[] = [];
 
     for (let i = 5; i >= 0; i--) {
@@ -283,10 +283,10 @@ export default function DashboardPage() {
                 </h2>
                 <div className="flex gap-3 p-2 bg-gray-50 rounded-lg self-start sm:self-auto">
                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> ยอดขาย
+                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> ยอดขาย/Sales
                   </div>
                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> กำไร
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> กำไร/Profit
                   </div>
                 </div>
               </div>
@@ -444,7 +444,7 @@ export default function DashboardPage() {
                         onClick={selectAll}
                         className="text-xs text-orange-600 font-bold hover:underline"
                       >
-                        เลือกทั้งหมด
+                        เลือกทั้งหมด / Select All
                       </button>
                       {selectedCount > 0 && (
                         <span className="text-xs text-orange-500 font-medium">
@@ -501,7 +501,7 @@ export default function DashboardPage() {
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
-                      📋 สร้างใบสั่งซื้อ ({selectedCount} รายการ)
+                      📋 สร้างใบสั่งซื้อ / Created purchase order ({selectedCount} รายการ / item)
                     </button>
                   </>
                 )}

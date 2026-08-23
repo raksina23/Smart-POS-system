@@ -113,7 +113,7 @@ export default function InventoryPage() {
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <button
             onClick={() => setSelectedCategory("")}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap ${
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border transition whitespace-nowrap ${
               selectedCategory === ""
                 ? "bg-blue-600 text-white border-blue-600"
                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -125,7 +125,7 @@ export default function InventoryPage() {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap ${
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border transition whitespace-nowrap ${
                 selectedCategory === cat
                   ? "bg-blue-600 text-white border-blue-600"
                   : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -138,7 +138,7 @@ export default function InventoryPage() {
 
         {/* Count */}
         {!loading && (
-          <p className="text-xs text-gray-400 px-1">
+          <p className="text-sm text-gray-400 px-1">
             พบ {filtered.length} รายการ / {filtered.length} item{filtered.length !== 1 ? "s" : ""}
           </p>
         )}
@@ -178,10 +178,10 @@ export default function InventoryPage() {
                         <img
                           src={product.photo_url}
                           alt={product.name}
-                          className="w-16 h-16 object-cover rounded-lg border border-gray-100"
+                          className="w-32 h-32 object-cover rounded-lg border border-gray-100"
                         />
                       ) : (
-                        <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xl">
+                        <div className="w-32 h-32 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xl">
                           📦
                         </div>
                       )}
@@ -200,7 +200,7 @@ export default function InventoryPage() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {product.stock_qty} ชิ้น
+                          {product.stock_qty} ชิ้น/pcs
                         </span>
                       </div>
 
@@ -208,12 +208,12 @@ export default function InventoryPage() {
                       {(isLowStock || isExpiringSoon) && (
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           {isLowStock && (
-                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                            <span className="text-md bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
                               ⚠️ สต็อกต่ำ / Low Stock
                             </span>
                           )}
                           {isExpiringSoon && (
-                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                            <span className="text-md bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
                               🕐 ใกล้หมดอายุ / Expiring Soon
                             </span>
                           )}
@@ -222,12 +222,12 @@ export default function InventoryPage() {
 
                       {/* Row 2: Meta info */}
                       <div className="mt-2 space-y-0.5">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-md text-gray-500">
                           <span className="text-gray-400">Barcode:</span> {product.barcode}
                           <span className="mx-1.5 text-gray-300">•</span>
                           <span className="text-gray-400">หมวด:</span> {product.category}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-md text-gray-500">
                           <span className="text-gray-400">ราคา:</span>{" "}
                           <span className="font-medium text-gray-700">฿{product.price}</span>
                           <span className="mx-1.5 text-gray-300">•</span>
@@ -240,7 +240,7 @@ export default function InventoryPage() {
                           </span>
                         </p>
                         {product.expiration_date && (
-                          <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                          <p className={`text-sms font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
                             EXP: {product.expiration_date}
                             {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
                           </p>
