@@ -34,7 +34,6 @@ export default function AddProductPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Basic validation: image type + max 5MB
     if (!file.type.startsWith("image/")) {
       setErrors({ ...errors, photo: "กรุณาเลือกไฟล์รูปภาพ / Please select an image file" });
       return;
@@ -108,22 +107,43 @@ export default function AddProductPage() {
       photoUrl = urlData.publicUrl;
     }
 
-    const { error } = await supabase
+    // 1. Create the product itself — no stock_qty / expiration_date anymore,
+    // those live on stock_batches now. .select().single() gets back the
+    // new row (including its generated id) so we can attach a batch to it.
+    const { data: newProduct, error: productError } = await supabase
       .from("products")
       .insert({
         name: form.name,
         barcode: form.barcode,
         price: Number(form.price),
         cost: Number(form.cost),
-        stock_qty: Number(form.stock),
         min_stock: Number(form.minStock),
         category: form.category,
-        expiration_date: form.expDate,
         photo_url: photoUrl,
-      });
+      })
+      .select()
+      .single();
 
-    if (error) {
-      alert("เกิดข้อผิดพลาด / Error: " + error.message);
+    if (productError || !newProduct) {
+      alert("เกิดข้อผิดพลาด / Error: " + productError?.message);
+      return;
+    }
+
+    // 2. Create its first stock batch, using the quantity/expiry the user
+    // entered above. Every future shipment adds another batch via Restock
+    // on the inventory page instead of coming back here.
+    const { error: batchError } = await supabase.from("stock_batches").insert({
+      product_id: newProduct.id,
+      quantity: Number(form.stock),
+      expiration_date: form.expDate,
+    });
+
+    if (batchError) {
+      alert(
+        "บันทึกสินค้าแล้ว แต่เพิ่มสต็อกเริ่มต้นไม่สำเร็จ / Product saved, but adding initial stock failed: " +
+          batchError.message
+      );
+      router.push("/inventory");
       return;
     }
 
@@ -296,9 +316,15 @@ export default function AddProductPage() {
             )}
           </div>
 
-          {/* Stock */}
+          {/* Stock — this becomes the product's FIRST batch, not a product field */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">จำนวน Stock / Stock Quantity</h2>
+            <h2 className="text-sm font-bold text-gray-600">
+              สต็อกเริ่มต้น / Initial Stock Batch
+            </h2>
+            <p className="text-xs text-gray-400 -mt-2">
+              การรับสินค้าครั้งต่อไปให้ใช้ปุ่ม "รับสินค้า" ในหน้าคลังสินค้า /
+              Future shipments are added via the "Restock" button on the inventory page, not here.
+            </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -335,10 +361,10 @@ export default function AddProductPage() {
             </div>
           </div>
 
-          {/* วันหมดอายุ */}
+          {/* วันหมดอายุ ของล็อตเริ่มต้น */}
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <h2 className="text-sm font-bold text-gray-600 mb-3">
-              วันหมดอายุ / Expiry Date
+              วันหมดอายุของล็อตนี้ / This Batch's Expiry Date
             </h2>
             <input
               type="date"

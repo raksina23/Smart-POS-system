@@ -17,19 +17,19 @@ export default function EditProductPage() {
     barcode: "",
     price: "",
     cost: "",
-    stock: "",
     minStock: "",
     category: "",
-    expDate: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchProduct = async () => {
+      // Note: stock_qty / expiration_date are no longer read here — they
+      // live on stock_batches now and are managed via Restock, not Edit.
       const { data, error } = await supabase
         .from("products")
-        .select("*")
+        .select("id, name, barcode, price, cost, min_stock, category")
         .eq("id", id)
         .single();
 
@@ -44,10 +44,8 @@ export default function EditProductPage() {
         barcode: data.barcode ?? "",
         price: String(data.price ?? ""),
         cost: String(data.cost ?? ""),
-        stock: String(data.stock_qty ?? ""),
         minStock: String(data.min_stock ?? ""),
         category: data.category ?? "",
-        expDate: data.expiration_date ?? "",
       });
 
       setLoading(false);
@@ -71,12 +69,9 @@ export default function EditProductPage() {
       newErrors.price = "กรุณากรอกราคาขายให้ถูกต้อง / Invalid selling price";
     if (!form.cost || isNaN(Number(form.cost)))
       newErrors.cost = "กรุณากรอกราคาทุนให้ถูกต้อง / Invalid cost price";
-    if (!form.stock || isNaN(Number(form.stock)))
-      newErrors.stock = "กรุณากรอกจำนวน stock ให้ถูกต้อง / Invalid stock quantity";
     if (!form.minStock || isNaN(Number(form.minStock)))
       newErrors.minStock = "กรุณากรอกจำนวนขั้นต่ำให้ถูกต้อง / Invalid minimum stock";
     if (!form.category) newErrors.category = "กรุณาเลือกหมวดหมู่ / Please select category";
-    if (!form.expDate) newErrors.expDate = "กรุณาเลือกวันหมดอายุ / Please select expiry date";
     return newErrors;
   };
 
@@ -90,6 +85,9 @@ export default function EditProductPage() {
 
     setSaving(true);
 
+    // stock_qty / expiration_date are intentionally NOT updated here —
+    // changing quantity or expiry now happens through Restock on the
+    // inventory page, which creates/adjusts stock_batches rows instead.
     const { error } = await supabase
       .from("products")
       .update({
@@ -97,10 +95,8 @@ export default function EditProductPage() {
         barcode: form.barcode,
         price: Number(form.price),
         cost: Number(form.cost),
-        stock_qty: Number(form.stock),
         min_stock: Number(form.minStock),
         category: form.category,
-        expiration_date: form.expDate,
       })
       .eq("id", id);
 
@@ -250,58 +246,29 @@ export default function EditProductPage() {
             )}
           </div>
 
-          {/* Stock */}
+          {/* จำนวนขั้นต่ำ — stock quantity itself is no longer editable here */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">จำนวน Stock / Stock Quantity</h2>
+            <h2 className="text-sm font-bold text-gray-600">จำนวนขั้นต่ำ / Minimum Stock</h2>
+            <p className="text-xs text-gray-400 -mt-2">
+              จำนวนสต็อกปัจจุบันจัดการผ่านปุ่ม "รับสินค้า" ในหน้าคลังสินค้า /
+              Current stock quantity is managed via the "Restock" button on the inventory page.
+            </p>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  จำนวนปัจจุบัน / Current Stock <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  name="stock"
-                  value={form.stock}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-                {errors.stock && <p className="text-red-500 text-xs mt-1">{errors.stock}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  จำนวนขั้นต่ำ / Minimum Stock <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  name="minStock"
-                  value={form.minStock}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-                {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                จำนวนขั้นต่ำ / Minimum Stock <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                name="minStock"
+                value={form.minStock}
+                onChange={handleChange}
+                placeholder="0"
+                min="0"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              />
+              {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
             </div>
-          </div>
-
-          {/* วันหมดอายุ */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
-            <h2 className="text-sm font-bold text-gray-600 mb-3">
-              วันหมดอายุ / Expiry Date
-            </h2>
-            <input
-              type="date"
-              name="expDate"
-              value={form.expDate}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-            />
-            {errors.expDate && <p className="text-red-500 text-xs mt-1">{errors.expDate}</p>}
           </div>
 
           {/* ปุ่ม */}

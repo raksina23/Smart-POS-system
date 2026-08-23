@@ -4,18 +4,45 @@ import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 
+interface StockBatch {
+  id: string;
+  quantity: number;
+  expiration_date: string | null;
+}
+
 interface Product {
   id: string;
   name: string;
   barcode: string;
   price: number;
   cost: number;
-  stock_qty: number;
   min_stock: number;
   category: string;
-  expiration_date: string;
   photo_url: string | null;
+  stock_batches: StockBatch[];
 }
+
+// --- Helpers: derive stock info from a product's batches ---
+const getTotalStock = (p: Product) =>
+  p.stock_batches.reduce((sum, b) => sum + b.quantity, 0);
+
+const getActiveBatches = (p: Product) =>
+  p.stock_batches.filter((b) => b.quantity > 0);
+
+const getNearestExpiry = (p: Product): string | null => {
+  const active = getActiveBatches(p).filter((b) => b.expiration_date);
+  if (active.length === 0) return null;
+  return active.reduce(
+    (min, b) => (b.expiration_date! < min ? b.expiration_date! : min),
+    active[0].expiration_date!
+  );
+};
+
+const daysUntil = (dateStr: string) => {
+  const today = new Date();
+  const target = new Date(dateStr);
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
 
 export default function InventoryPage() {
   const router = useRouter();
@@ -24,17 +51,26 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
 
+  // Restock modal state
+  const [restockTarget, setRestockTarget] = useState<Product | null>(null);
+  const [restockQty, setRestockQty] = useState("");
+  const [restockExpiry, setRestockExpiry] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
   const fetchProducts = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(
+        `id, name, barcode, price, cost, category, min_stock, photo_url,
+         stock_batches ( id, quantity, expiration_date )`
+      )
       .order("name");
 
     if (error) {
       console.error("Error fetching products:", error.message);
     } else {
-      setProducts(data || []);
+      setProducts((data as unknown as Product[]) || []);
     }
     setLoading(false);
   };
@@ -53,6 +89,37 @@ export default function InventoryPage() {
       return;
     }
 
+    fetchProducts();
+  };
+
+  const openRestock = (product: Product) => {
+    setRestockTarget(product);
+    setRestockQty("");
+    setRestockExpiry("");
+  };
+
+  const submitRestock = async () => {
+    if (!restockTarget) return;
+    const qty = parseInt(restockQty, 10);
+    if (!qty || qty <= 0) {
+      alert("กรุณาระบุจำนวนที่ถูกต้อง / Please enter a valid quantity");
+      return;
+    }
+
+    setSubmitting(true);
+    const { error } = await supabase.from("stock_batches").insert({
+      product_id: restockTarget.id,
+      quantity: qty,
+      expiration_date: restockExpiry || null,
+    });
+    setSubmitting(false);
+
+    if (error) {
+      alert("เกิดข้อผิดพลาด / Error: " + error.message);
+      return;
+    }
+
+    setRestockTarget(null);
     fetchProducts();
   };
 
@@ -81,7 +148,6 @@ export default function InventoryPage() {
             </h1>
             <p className="text-sm text-gray-400">Inventory</p>
           </div>
-          {/* Desktop: show button here */}
           <button
             onClick={() => router.push("/inventory/add")}
             className="hidden sm:flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition"
@@ -99,7 +165,6 @@ export default function InventoryPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
           />
-          {/* Mobile: compact + button */}
           <button
             onClick={() => router.push("/inventory/add")}
             className="sm:hidden flex-shrink-0 bg-blue-600 text-white w-11 h-11 rounded-xl text-xl font-bold shadow-sm hover:bg-blue-700 transition flex items-center justify-center"
@@ -157,13 +222,13 @@ export default function InventoryPage() {
         ) : (
           <div className="space-y-2.5">
             {filtered.map((product) => {
-              const isLowStock = product.stock_qty <= product.min_stock;
-              const today = new Date();
-              const expDate = new Date(product.expiration_date);
-              const daysLeft = Math.ceil(
-                (expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-              );
-              const isExpiringSoon = daysLeft <= 7 && daysLeft >= 0;
+              const totalStock = getTotalStock(product);
+              const activeBatches = getActiveBatches(product);
+              const isLowStock = totalStock <= product.min_stock;
+              const nearestExpiry = getNearestExpiry(product);
+              const daysLeft = nearestExpiry ? daysUntil(nearestExpiry) : null;
+              const isExpiringSoon =
+                daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
 
               return (
                 <div
@@ -172,16 +237,15 @@ export default function InventoryPage() {
                 >
                   {/* Card body */}
                   <div className="p-4 flex gap-3">
-                    {/* Photo thumbnail */}
                     <div className="flex-shrink-0">
                       {product.photo_url ? (
                         <img
                           src={product.photo_url}
                           alt={product.name}
-                          className="w-32 h-32 object-cover rounded-lg border border-gray-100"
+                          className="w-16 h-16 object-cover rounded-lg border border-gray-100"
                         />
                       ) : (
-                        <div className="w-32 h-32 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xl">
+                        <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xl">
                           📦
                         </div>
                       )}
@@ -200,21 +264,26 @@ export default function InventoryPage() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {product.stock_qty} ชิ้น/pcs
+                          {totalStock} ชิ้น / pcs
                         </span>
                       </div>
 
                       {/* Badges */}
-                      {(isLowStock || isExpiringSoon) && (
+                      {(isLowStock || isExpiringSoon || activeBatches.length > 1) && (
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           {isLowStock && (
-                            <span className="text-md bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
                               ⚠️ สต็อกต่ำ / Low Stock
                             </span>
                           )}
                           {isExpiringSoon && (
-                            <span className="text-md bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
                               🕐 ใกล้หมดอายุ / Expiring Soon
+                            </span>
+                          )}
+                          {activeBatches.length > 1 && (
+                            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                              📦 {activeBatches.length} ล็อต / lots
                             </span>
                           )}
                         </div>
@@ -222,12 +291,12 @@ export default function InventoryPage() {
 
                       {/* Row 2: Meta info */}
                       <div className="mt-2 space-y-0.5">
-                        <p className="text-md text-gray-500">
+                        <p className="text-xs text-gray-500">
                           <span className="text-gray-400">Barcode:</span> {product.barcode}
                           <span className="mx-1.5 text-gray-300">•</span>
                           <span className="text-gray-400">หมวด:</span> {product.category}
                         </p>
-                        <p className="text-md text-gray-500">
+                        <p className="text-xs text-gray-500">
                           <span className="text-gray-400">ราคา:</span>{" "}
                           <span className="font-medium text-gray-700">฿{product.price}</span>
                           <span className="mx-1.5 text-gray-300">•</span>
@@ -239,9 +308,9 @@ export default function InventoryPage() {
                             ฿{product.price - product.cost}
                           </span>
                         </p>
-                        {product.expiration_date && (
-                          <p className={`text-sms font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
-                            EXP: {product.expiration_date}
+                        {nearestExpiry && (
+                          <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                            EXP ใกล้สุด: {nearestExpiry}
                             {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
                           </p>
                         )}
@@ -251,6 +320,13 @@ export default function InventoryPage() {
 
                   {/* Action buttons */}
                   <div className="flex border-t border-gray-100">
+                    <button
+                      onClick={() => openRestock(product)}
+                      className="flex-1 py-3 text-sm font-medium text-green-600 hover:bg-green-50 active:bg-green-100 transition flex items-center justify-center gap-1"
+                    >
+                      📥 <span>รับสินค้า / Restock</span>
+                    </button>
+                    <div className="w-px bg-gray-100" />
                     <button
                       onClick={() => router.push(`/inventory/edit/${product.id}`)}
                       className="flex-1 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1"
@@ -274,6 +350,63 @@ export default function InventoryPage() {
         {/* Bottom padding for mobile scroll */}
         <div className="h-4" />
       </div>
+
+      {/* Restock modal */}
+      {restockTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 space-y-4">
+            <div>
+              <h2 className="font-bold text-gray-800 text-lg">รับสินค้าเข้า / Restock</h2>
+              <p className="text-sm text-gray-400">{restockTarget.name}</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-gray-600 font-medium">
+                  จำนวนที่รับเข้า / Quantity received
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={restockQty}
+                  onChange={(e) => setRestockQty(e.target.value)}
+                  className="mt-1 w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  placeholder="เช่น 50"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-600 font-medium">
+                  วันหมดอายุของล็อตนี้ / This batch's expiration date
+                </label>
+                <input
+                  type="date"
+                  value={restockExpiry}
+                  onChange={(e) => setRestockExpiry(e.target.value)}
+                  className="mt-1 w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setRestockTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
+              >
+                ยกเลิก / Cancel
+              </button>
+              <button
+                onClick={submitRestock}
+                disabled={submitting}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? "กำลังบันทึก..." : "บันทึก / Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

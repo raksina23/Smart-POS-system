@@ -5,9 +5,10 @@ import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 
 interface ExpiringProduct {
-  id: string;
+  id: string; // stock_batches.id — this specific batch
+  product_id: string; // products.id — needed to apply a discount to the product
   name: string;
-  stock_qty: number;
+  stock_qty: number; // this BATCH's quantity, not the product's total stock
   price: number;
   expiration_date: string;
   daysLeft: number;
@@ -60,30 +61,59 @@ export default function DashboardPage() {
     const in7Days = new Date();
     in7Days.setDate(today.getDate() + 7);
 
+    // Expiring stock now lives on stock_batches, not products. We only
+    // want batches that still have quantity left (quantity > 0) — an
+    // emptied-out batch shouldn't trigger a discount alert.
     const { data, error } = await supabase
-      .from("products")
-      .select("id, name, stock_qty, price, expiration_date")
+      .from("stock_batches")
+      .select(`
+        id,
+        product_id,
+        quantity,
+        expiration_date,
+        products ( name, price )
+      `)
+      .gt("quantity", 0)
       .lte("expiration_date", in7Days.toISOString().split("T")[0])
       .gte("expiration_date", today.toISOString().split("T")[0])
       .order("expiration_date");
 
     if (!error && data) {
-      const mapped = data.map((p) => {
-        const exp = new Date(p.expiration_date);
+      const mapped = data.map((b: any) => {
+        const exp = new Date(b.expiration_date);
         const daysLeft = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return { ...p, daysLeft };
+        return {
+          id: b.id,
+          product_id: b.product_id,
+          name: b.products?.name ?? "",
+          price: b.products?.price ?? 0,
+          stock_qty: b.quantity,
+          expiration_date: b.expiration_date,
+          daysLeft,
+        };
       });
       setExpiringProducts(mapped);
     }
   };
 
   const fetchLowStockProducts = async () => {
+    // Total stock per product is now the SUM of its batches, so we fetch
+    // each product together with its batches and add them up here.
     const { data: allProducts } = await supabase
       .from("products")
-      .select("id, name, stock_qty, min_stock");
+      .select(`id, name, min_stock, stock_batches ( quantity )`);
 
     if (allProducts) {
-      const low = allProducts.filter((p) => p.stock_qty <= p.min_stock);
+      const withTotals = (allProducts as any[]).map((p) => ({
+        id: p.id,
+        name: p.name,
+        min_stock: p.min_stock,
+        stock_qty: (p.stock_batches ?? []).reduce(
+          (sum: number, b: { quantity: number }) => sum + b.quantity,
+          0
+        ),
+      }));
+      const low = withTotals.filter((p) => p.stock_qty <= p.min_stock);
       setLowStockProducts(low);
     }
   };
@@ -161,25 +191,27 @@ export default function DashboardPage() {
     setMonthlyData(last6);
   };
 
-  const handleApplyDiscount = async (id: string, percent: number) => {
-    const product = expiringProducts.find((p) => p.id === id);
-    if (!product) return;
+  const handleApplyDiscount = async (batchId: string, percent: number) => {
+    const batch = expiringProducts.find((p) => p.id === batchId);
+    if (!batch) return;
 
-    const newPrice = Math.round(product.price * (1 - percent / 100));
+    const newPrice = Math.round(batch.price * (1 - percent / 100));
 
+    // Discounting affects the PRODUCT's price (products table), even
+    // though the alert we're reacting to is about a specific batch.
     const { error } = await supabase
       .from("products")
       .update({ price: newPrice })
-      .eq("id", id);
+      .eq("id", batch.product_id);
 
     if (error) {
       alert("เกิดข้อผิดพลาด / Error: " + error.message);
       return;
     }
 
-    setDiscountedItems({ ...discountedItems, [id]: percent });
+    setDiscountedItems({ ...discountedItems, [batchId]: percent });
     setOpenDropdown(null);
-    alert(`ลดราคา "${product.name}" ${percent}% เรียบร้อย!\nราคาใหม่: ฿${newPrice}`);
+    alert(`ลดราคา "${batch.name}" ${percent}% เรียบร้อย!\nราคาใหม่: ฿${newPrice}`);
   };
 
   const toggleSelect = (id: string) => {
@@ -243,7 +275,6 @@ export default function DashboardPage() {
         ) : (
           <>
             {/* ─── Summary Cards ─── */}
-            {/* บนมือถือ: 2×2, บน tablet ขึ้นไป: 4 คอลัมน์ */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
               <SummaryCard
                 label="ยอดขายวันนี้"
@@ -273,7 +304,6 @@ export default function DashboardPage() {
 
             {/* ─── Bar Chart ─── */}
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Chart header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
                 <h2 className="text-base sm:text-lg font-bold flex flex-wrap items-center gap-1.5">
                   📊 สถิติยอดขายและกำไรรายเดือน
@@ -291,14 +321,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/*
-                Chart bars — height is set with Tailwind's h-* utility on the
-                OUTER container only (change "h-56 sm:h-64" below to make the
-                whole chart taller). Every bar's height is then a PERCENTAGE
-                of that container, computed from the data, so the chart stays
-                proportionally correct automatically — no magic pixel numbers
-                to keep in sync anywhere else.
-              */}
               <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                 <div
                   className="relative flex items-end justify-between gap-1 border-b-2 border-gray-100 h-56 sm:h-64 pb-7"
@@ -310,7 +332,6 @@ export default function DashboardPage() {
                     return (
                       <div key={index} className="flex flex-col items-center flex-1 group min-w-0 h-full">
                         <div className="flex items-end gap-1 w-full justify-center h-full">
-                          {/* Sales bar */}
                           <div
                             style={{ height: `${salesPct}%` }}
                             className="w-4 sm:w-8 md:w-10 bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 relative"
@@ -319,7 +340,6 @@ export default function DashboardPage() {
                               ฿{data.amount.toLocaleString()}
                             </span>
                           </div>
-                          {/* Profit bar */}
                           <div
                             style={{ height: `${profitPct}%` }}
                             className="w-4 sm:w-8 md:w-10 bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all duration-300 relative"
@@ -340,7 +360,6 @@ export default function DashboardPage() {
             </div>
 
             {/* ─── Alert Panels ─── */}
-            {/* stack บนมือถือ, side-by-side บน md ขึ้นไป */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
               {/* สินค้าใกล้หมดอายุ */}
@@ -369,14 +388,13 @@ export default function DashboardPage() {
                         key={item.id}
                         className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-red-100"
                       >
-                        {/* แบ่ง 2 แถวบนมือถือแทน flex row เดียว */}
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <p className="font-bold text-gray-800 text-sm sm:text-base truncate">
                               {item.name}
                             </p>
                             <p className="text-xs text-gray-500 mt-0.5">
-                              คงเหลือ {item.stock_qty} ชิ้น · ฿{item.price} · อีก{" "}
+                              ล็อตนี้ {item.stock_qty} ชิ้น · ฿{item.price} · อีก{" "}
                               <span className="font-bold text-red-600">{item.daysLeft} วัน</span>
                             </p>
                           </div>
@@ -528,7 +546,6 @@ function SummaryCard({
 }) {
   return (
     <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-      {/* label บนมือถือแสดงแค่ภาษาไทย, บน sm ขึ้นไปแสดงทั้งคู่ */}
       <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide mb-1 leading-snug">
         {label}
         <span className="hidden sm:inline"> / {sublabel}</span>
