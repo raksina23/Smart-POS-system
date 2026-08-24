@@ -291,12 +291,12 @@ export default function InventoryPage() {
 
                       {/* Row 2: Meta info */}
                       <div className="mt-2 space-y-0.5">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-sm text-gray-500">
                           <span className="text-gray-400">Barcode:</span> {product.barcode}
                           <span className="mx-1.5 text-gray-300">•</span>
                           <span className="text-gray-400">หมวด:</span> {product.category}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-sm text-gray-500">
                           <span className="text-gray-400">ราคา:</span>{" "}
                           <span className="font-medium text-gray-700">฿{product.price}</span>
                           <span className="mx-1.5 text-gray-300">•</span>
@@ -309,7 +309,7 @@ export default function InventoryPage() {
                           </span>
                         </p>
                         {nearestExpiry && (
-                          <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                          <p className={`text-sm font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
                             EXP ใกล้สุด: {nearestExpiry}
                             {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
                           </p>
