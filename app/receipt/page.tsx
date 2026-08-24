@@ -16,6 +16,58 @@ interface CartItem {
 type PaymentMethod = "cash" | "transfer" | null;
 type PaymentStatus = "pending" | "saving" | "paid";
 
+/**
+ * Deducts `qtyToDeduct` units of a product from its stock_batches,
+ * taking from the batch with the SOONEST expiration date first (FEFO —
+ * First Expired, First Out). If that batch doesn't have enough, the
+ * remainder spills over into the next-soonest batch, and so on.
+ * Batches with no expiration_date are treated as "never expires" and
+ * are only used last, after every dated batch is exhausted.
+ */
+async function deductStockFEFO(productId: string, qtyToDeduct: number) {
+  const { data: batches, error } = await supabase
+    .from("stock_batches")
+    .select("id, quantity, expiration_date")
+    .eq("product_id", productId)
+    .gt("quantity", 0)
+    .order("expiration_date", { ascending: true, nullsFirst: false });
+
+  if (error) {
+    throw new Error(`ไม่สามารถอ่านข้อมูลล็อตสินค้าได้: ${error.message}`);
+  }
+
+  let remaining = qtyToDeduct;
+
+  for (const batch of batches ?? []) {
+    if (remaining <= 0) break;
+
+    const deductFromThisBatch = Math.min(batch.quantity, remaining);
+    const newQuantity = batch.quantity - deductFromThisBatch;
+
+    const { error: updateError } = await supabase
+      .from("stock_batches")
+      .update({ quantity: newQuantity })
+      .eq("id", batch.id);
+
+    if (updateError) {
+      throw new Error(`ไม่สามารถตัดสต็อกได้: ${updateError.message}`);
+    }
+
+    remaining -= deductFromThisBatch;
+  }
+
+  if (remaining > 0) {
+    // Every batch was exhausted but there still wasn't enough stock —
+    // this shouldn't normally happen since POS checks stock before
+    // checkout, but could occur from a race condition (two sales at
+    // once). We don't block the sale here, but this is worth logging
+    // and reviewing rather than silently ignoring.
+    console.warn(
+      `สต็อกไม่พอสำหรับสินค้า ${productId}: ขาดอีก ${remaining} ชิ้น`
+    );
+  }
+}
+
 export default function ReceiptPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -93,12 +145,10 @@ export default function ReceiptPage() {
         return;
       }
 
-      // 3. ลด stock_qty ทีละรายการ
+      // 3. ตัดสต็อกแบบ FEFO (First Expired, First Out) — หักจากล็อตที่หมดอายุ
+      // เร็วที่สุดก่อน แทนที่จะลด stock_qty ตรงๆ บน products (ไม่มีคอลัมน์นี้แล้ว)
       for (const item of cart) {
-        await supabase
-          .from("products")
-          .update({ stock_qty: item.stock_qty - item.qty })
-          .eq("id", item.id);
+        await deductStockFEFO(item.id, item.qty);
       }
 
       // 4. สำเร็จ
@@ -275,14 +325,6 @@ export default function ReceiptPage() {
                   <p>เลขบัญชี: 123-4-56789-0</p>
                   <p>ชื่อบัญชี: ร้านอัจฉริยะ</p>
                 </div>
-                {/* <div className="border-t border-blue-200 pt-3 space-y-1">
-                  <p className="font-medium text-blue-800">📱 QR Code</p>
-                  <div className="flex justify-center">
-                    <div className="w-28 h-28 bg-white border-2 border-blue-200 rounded-xl flex items-center justify-center">
-                      <p className="text-xs text-gray-400 text-center">QR Code<br />(จำลอง)</p>
-                    </div>
-                  </div>
-                </div> */}
                 <p className="font-bold text-blue-800 text-center">
                   ยอดที่ต้องชำระ: ฿{total.toFixed(2)}
                 </p>
@@ -341,9 +383,6 @@ export default function ReceiptPage() {
               )}
             </div>
 
-            {/* <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
-              พิมพ์ใบเสร็จ
-            </button> */}
             <button
               onClick={handleSellMore}
               className="w-full border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"

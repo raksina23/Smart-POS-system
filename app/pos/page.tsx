@@ -19,7 +19,6 @@ export default function POSPage() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [error, setError] = useState("");
   
-  // --- ระบบจัดการสิทธิ์ (Role) ---
   const [role, setRole] = useState<string>(""); 
   const [loadingRole, setLoadingRole] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -28,16 +27,14 @@ export default function POSPage() {
     const checkAuthAndRole = async () => {
       setLoadingRole(true);
       
-      // 1. ดึงข้อมูล User จากระบบ Auth
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !user) {
         console.error("User not logged in");
-        router.push("/"); // ถ้าไม่เจอ user ให้กลับไปหน้า login
+        router.push("/");
         return;
       }
 
-      // 2. ดึง Role จากตาราง profiles โดยใช้ id ของ user
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role")
@@ -46,9 +43,8 @@ export default function POSPage() {
 
       if (profileError) {
         console.error("Error fetching profile:", profileError.message);
-        setRole("cashier"); // ถ้า error ให้ default เป็น cashier ไว้ก่อนเพื่อความปลอดภัย
+        setRole("cashier");
       } else {
-        // บังคับเป็นตัวพิมพ์เล็กเพื่อให้ Navbar เช็คเงื่อนไขง่ายขึ้น
         setRole(profile.role.toLowerCase()); 
       }
       
@@ -62,15 +58,16 @@ export default function POSPage() {
     (sum, item) => sum + item.price * item.qty, 0
   );
 
-  // --- ฟังก์ชันเพิ่มสินค้าลงตะกร้า ---
   const addToCart = async (barcode: string) => {
     setLoading(true);
     setError("");
     
     try {
+      // stock_qty no longer lives on products — fetch the product together
+      // with its batches and sum them here to get the true total in stock.
       const { data: product, error: dbError } = await supabase
         .from("products")
-        .select("*")
+        .select(`*, stock_batches ( quantity )`)
         .eq("barcode", barcode.trim())
         .single();
 
@@ -80,16 +77,33 @@ export default function POSPage() {
         return;
       }
 
-      if (product.stock_qty <= 0) {
+      const totalStock = (product.stock_batches ?? []).reduce(
+        (sum: number, b: { quantity: number }) => sum + b.quantity,
+        0
+      );
+
+      if (totalStock <= 0) {
         setError(`สินค้า "${product.name}" หมดสต็อก`);
         setLoading(false);
         return;
       }
 
+      // Build the cart item explicitly rather than spreading `product`,
+      // since `product` now carries a nested stock_batches array we don't
+      // want sitting in the cart — stock_qty here is the computed total.
+      const cartProduct: CartItem = {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        barcode: product.barcode,
+        stock_qty: totalStock,
+        qty: 1,
+      };
+
       setCart((prev) => {
         const existing = prev.find((item) => item.barcode === barcode);
         if (existing) {
-          if (existing.qty + 1 > product.stock_qty) {
+          if (existing.qty + 1 > totalStock) {
             setError("สต็อกไม่พอ");
             return prev;
           }
@@ -99,7 +113,7 @@ export default function POSPage() {
               : item
           );
         }
-        return [...prev, { ...product, qty: 1 }];
+        return [...prev, cartProduct];
       });
     } catch (err) {
       setError("การเชื่อมต่อฐานข้อมูลขัดข้อง");
@@ -154,7 +168,6 @@ export default function POSPage() {
     router.push("/receipt");
   };
 
-  // แสดง Loading Screen ระหว่างเช็คสิทธิ์
   if (loadingRole) {
     return (
       <div className="h-screen flex items-center justify-center bg-white">
@@ -168,12 +181,10 @@ export default function POSPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 font-sans">
-      {/* ส่ง role ที่ดึงมาจาก DB จริงๆ ไปที่ Navbar */}
       <Navbar role={role}/>
       
       <div className="flex flex-col flex-1 max-w-md mx-auto w-full shadow-lg overflow-hidden bg-white">
 
-        {/* กล้องสแกน */}
         <div className="p-4 bg-white border-b">
           <div className="h-40 bg-gray-200 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-400 relative overflow-hidden">
             <p className="text-gray-500 z-10 font-medium">📷 พื้นที่สแกนบาร์โค้ด...</p>
@@ -181,7 +192,6 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* ช่องคีย์บาร์โค้ด */}
         <div className="px-4 py-3 bg-white border-b">
           <label className="text-xs font-medium text-gray-500 mb-1 block">
             คีย์บาร์โค้ดด้วยตนเอง (กด Enter เพื่อเพิ่ม)
@@ -200,7 +210,6 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* รายการในตะกร้า */}
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
           <h2 className="text-sm font-bold text-gray-600 mb-3">
             รายการสินค้า ({cart.length})
@@ -239,7 +248,6 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* ยอดรวมและปุ่ม Checkout */}
         <div className="bg-white p-4 border-t shadow-inner">
           <div className="flex justify-between items-center mb-4">
             <span className="text-lg font-bold text-gray-700">ยอดรวมทั้งสิ้น</span>
