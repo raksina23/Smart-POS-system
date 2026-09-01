@@ -220,7 +220,7 @@ export default function InventoryPage() {
             ไม่พบสินค้า / No products found
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-3">
             {filtered.map((product) => {
               const totalStock = getTotalStock(product);
               const activeBatches = getActiveBatches(product);
@@ -233,110 +233,119 @@ export default function InventoryPage() {
               return (
                 <div
                   key={product.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
                 >
-                  {/* Card body */}
-                  <div className="p-4 flex gap-3">
-                    <div className="flex-shrink-0">
+                  {/* Photo — smaller square, just enough to see clearly */}
+                  <div className="w-full flex justify-center pt-3 pb-1 bg-white">
+                    <div className="w-40 h-40 rounded-lg overflow-hidden bg-gray-100">
                       {product.photo_url ? (
                         <img
                           src={product.photo_url}
                           alt={product.name}
-                          className="w-16 h-16 object-cover rounded-lg border border-gray-100"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xl">
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">
                           📦
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    <div className="flex-1 min-w-0">
-                      {/* Row 1: Name + Stock badge */}
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-bold text-gray-800 text-base leading-snug flex-1 min-w-0 truncate">
-                          {product.name}
-                        </p>
-                        <span
-                          className={`flex-shrink-0 text-sm font-semibold px-3 py-0.5 rounded-full whitespace-nowrap ${
-                            isLowStock
-                              ? "bg-orange-100 text-orange-600"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {totalStock} ชิ้น / pcs
-                        </span>
-                      </div>
+                  {/* Full detail, same content as before — just stacked to fit
+                      the narrower half-width card instead of a wide row */}
+                  <div className="p-3 flex-1 flex flex-col">
+                    {/* Name + stock */}
+                    <div className="flex items-start justify-between gap-1.5">
+                      <p className="font-bold text-gray-800 text-sm leading-snug flex-1 min-w-0 truncate">
+                        {product.name}
+                      </p>
+                      <span
+                        className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                          isLowStock
+                            ? "bg-orange-100 text-orange-600"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {totalStock} ชิ้น
+                      </span>
+                    </div>
 
-                      {/* Badges */}
-                      {(isLowStock || isExpiringSoon || activeBatches.length > 1) && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {isLowStock && (
-                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
-                              ⚠️ สต็อกต่ำ / Low Stock
-                            </span>
-                          )}
-                          {isExpiringSoon && (
-                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
-                              🕐 ใกล้หมดอายุ / Expiring Soon
-                            </span>
-                          )}
-                          {activeBatches.length > 1 && (
-                            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                              📦 {activeBatches.length} ล็อต / lots
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Row 2: Meta info */}
-                      <div className="mt-2 space-y-0.5">
-                        <p className="text-sm text-gray-500">
-                          <span className="text-gray-400">Barcode:</span> {product.barcode}
-                          <span className="mx-1.5 text-gray-300">•</span>
-                          <span className="text-gray-400">หมวด:</span> {product.category}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          <span className="text-gray-400">ราคา:</span>{" "}
-                          <span className="font-medium text-gray-700">฿{product.price}</span>
-                          <span className="mx-1.5 text-gray-300">•</span>
-                          <span className="text-gray-400">ทุน:</span>{" "}
-                          <span className="font-medium text-gray-700">฿{product.cost}</span>
-                          <span className="mx-1.5 text-gray-300">•</span>
-                          <span className="text-gray-400">กำไร:</span>{" "}
-                          <span className="font-medium text-green-600">
-                            ฿{product.price - product.cost}
+                    {/* Badges — full text, same as before */}
+                    {(isLowStock || isExpiringSoon || activeBatches.length > 1) && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {isLowStock && (
+                          <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">
+                            ⚠️ สต็อกต่ำ / Low Stock
                           </span>
-                        </p>
-                        {nearestExpiry && (
-                          <p className={`text-sm font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
-                            EXP ใกล้สุด: {nearestExpiry}
-                            {isExpiringSoon && ` · อีก ${daysLeft} วัน / ${daysLeft}d left`}
-                          </p>
+                        )}
+                        {isExpiringSoon && (
+                          <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                            🕐 ใกล้หมดอายุ / Expiring Soon
+                          </span>
+                        )}
+                        {activeBatches.length > 1 && (
+                          <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                            📦 {activeBatches.length} ล็อต / lots
+                          </span>
                         )}
                       </div>
+                    )}
+
+                    {/* Meta info — barcode, category, price, cost, profit, all preserved */}
+                    <div className="mt-2 space-y-0.5">
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">Barcode:</span> {product.barcode}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">หมวดหมู่ / Category:</span> {product.category}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">ราคา / Price:</span>{" "}
+                        <span className="font-medium text-gray-700">฿{product.price}</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">ทุน / Cost:</span>{" "}
+                        <span className="font-medium text-gray-700">฿{product.cost}</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <span className="text-gray-400">กำไร / Profit:</span>{" "}
+                        <span className="font-medium text-green-600">
+                          ฿{product.price - product.cost}
+                        </span>
+                      </p>
+                      {nearestExpiry && (
+                        <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                          EXP ใกล้สุด: {nearestExpiry}
+                          {isExpiringSoon && (
+                            <>
+                              <br />
+                              อีก {daysLeft} วัน / {daysLeft}d left
+                            </>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Action buttons */}
-                  <div className="flex border-t border-gray-100">
+                  {/* Action buttons — stacked full-width rows so labels stay
+                      readable, instead of squeezing 3 across the narrow card */}
+                  <div className="border-t border-gray-100 flex flex-col">
                     <button
                       onClick={() => openRestock(product)}
-                      className="flex-1 py-3 text-sm font-medium text-green-600 hover:bg-green-50 active:bg-green-100 transition flex items-center justify-center gap-1"
+                      className="py-2.5 text-xs font-medium text-green-600 hover:bg-green-50 active:bg-green-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
                     >
                       📥 <span>รับสินค้า / Restock</span>
                     </button>
-                    <div className="w-px bg-gray-100" />
                     <button
                       onClick={() => router.push(`/inventory/edit/${product.id}`)}
-                      className="flex-1 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1"
+                      className="py-2.5 text-xs font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
                     >
                       ✏️ <span>แก้ไข / Edit</span>
                     </button>
-                    <div className="w-px bg-gray-100" />
                     <button
                       onClick={() => handleDelete(product.id, product.name)}
-                      className="flex-1 py-3 text-sm font-medium text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1"
+                      className="py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1"
                     >
                       🗑️ <span>ลบ / Delete</span>
                     </button>

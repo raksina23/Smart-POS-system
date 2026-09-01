@@ -1,16 +1,17 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
-import { supabase } from "../lib/supabase"; 
+import { supabase } from "../lib/supabase";
+import BarcodeScanner from "../components/BarcodeScanner"; // adjust path to wherever you put it
 
 interface CartItem {
-  id: string; 
+  id: string;
   name: string;
   price: number;
   qty: number;
   barcode: string;
-  stock_qty: number; 
+  stock_qty: number;
 }
 
 export default function POSPage() {
@@ -18,15 +19,19 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [error, setError] = useState("");
-  
-  const [role, setRole] = useState<string>(""); 
+
+  const [role, setRole] = useState<string>("");
   const [loadingRole, setLoadingRole] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  // --- scanner state ---
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraError, setCameraError] = useState("");
 
   useEffect(() => {
     const checkAuthAndRole = async () => {
       setLoadingRole(true);
-      
+
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !user) {
@@ -45,9 +50,9 @@ export default function POSPage() {
         console.error("Error fetching profile:", profileError.message);
         setRole("cashier");
       } else {
-        setRole(profile.role.toLowerCase()); 
+        setRole(profile.role.toLowerCase());
       }
-      
+
       setLoadingRole(false);
     };
 
@@ -58,13 +63,11 @@ export default function POSPage() {
     (sum, item) => sum + item.price * item.qty, 0
   );
 
-  const addToCart = async (barcode: string) => {
+  const addToCart = useCallback(async (barcode: string) => {
     setLoading(true);
     setError("");
-    
+
     try {
-      // stock_qty no longer lives on products — fetch the product together
-      // with its batches and sum them here to get the true total in stock.
       const { data: product, error: dbError } = await supabase
         .from("products")
         .select(`*, stock_batches ( quantity )`)
@@ -88,9 +91,6 @@ export default function POSPage() {
         return;
       }
 
-      // Build the cart item explicitly rather than spreading `product`,
-      // since `product` now carries a nested stock_batches array we don't
-      // want sitting in the cart — stock_qty here is the computed total.
       const cartProduct: CartItem = {
         id: product.id,
         name: product.name,
@@ -121,13 +121,42 @@ export default function POSPage() {
       setLoading(false);
       setBarcodeInput("");
     }
-  };
+  }, []);
 
   const handleBarcodeSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && barcodeInput.trim() !== "") {
       addToCart(barcodeInput.trim());
     }
   };
+
+  // --- scanner handlers ---
+  const openScanner = async () => {
+    setCameraError("");
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("no-camera-api");
+      }
+      // quick permission probe; the actual stream is opened by BarcodeScanner itself
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setScannerOpen(true);
+    } catch (err) {
+      setCameraError(
+        "ไม่พบกล้อง หรือไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาใช้การคีย์บาร์โค้ดด้วยตนเองแทน"
+      );
+      setScannerOpen(false);
+    }
+  };
+
+  const closeScanner = () => setScannerOpen(false);
+
+  // barcode successfully decoded by the camera
+  const handleScanSuccess = useCallback(
+    (decodedText: string) => {
+      addToCart(decodedText);
+    },
+    [addToCart]
+  );
 
   const increaseQty = (id: string) => {
     setCart((prev) =>
@@ -181,15 +210,34 @@ export default function POSPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 font-sans">
-      <Navbar role={role}/>
-      
+      <Navbar role={role} />
+
       <div className="flex flex-col flex-1 max-w-md mx-auto w-full shadow-lg overflow-hidden bg-white">
 
+        {/* --- scanner area --- */}
         <div className="p-4 bg-white border-b">
-          <div className="h-40 bg-gray-200 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-400 relative overflow-hidden">
-            <p className="text-gray-500 z-10 font-medium">📷 พื้นที่สแกนบาร์โค้ด...</p>
-            <div className="absolute w-full h-0.5 bg-red-500 top-1/2 animate-pulse"></div>
-          </div>
+          {!scannerOpen ? (
+            <button
+              onClick={openScanner}
+              className="h-40 w-full bg-gray-200 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-gray-400 hover:bg-gray-300 transition-colors"
+            >
+              <span className="text-2xl mb-1">📷</span>
+              <span className="text-gray-600 text-sm font-medium">กดเพื่อเปิดกล้องสแกน</span>
+            </button>
+          ) : (
+            <div className="relative h-40 rounded-lg overflow-hidden bg-black">
+              <BarcodeScanner onScan={handleScanSuccess} />
+              <button
+                onClick={closeScanner}
+                className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md z-10"
+              >
+                ✕ ปิดกล้อง
+              </button>
+            </div>
+          )}
+          {cameraError && (
+            <p className="text-red-500 text-xs mt-2 font-bold">{cameraError}</p>
+          )}
         </div>
 
         <div className="px-4 py-3 bg-white border-b">
