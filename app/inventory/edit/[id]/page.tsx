@@ -23,13 +23,24 @@ export default function EditProductPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // --- photo state ---
+  // existingPhotoUrl: what's currently saved in the DB (from initial fetch)
+  // photoFile: a newly picked file, not yet uploaded
+  // photoPreview: what to actually show in the UI (existing OR new OR none)
+  // photoRemoved: user explicitly cleared the photo, so submit should null it out
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
   useEffect(() => {
     const fetchProduct = async () => {
       // Note: stock_qty / expiration_date are no longer read here — they
       // live on stock_batches now and are managed via Restock, not Edit.
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, barcode, price, cost, min_stock, category")
+        .select("id, name, barcode, price, cost, min_stock, category, photo_url")
         .eq("id", id)
         .single();
 
@@ -48,6 +59,9 @@ export default function EditProductPage() {
         category: data.category ?? "",
       });
 
+      setExistingPhotoUrl(data.photo_url ?? null);
+      setPhotoPreview(data.photo_url ?? null);
+
       setLoading(false);
     };
 
@@ -59,6 +73,31 @@ export default function EditProductPage() {
   ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: "" });
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setErrors({ ...errors, photo: "กรุณาเลือกไฟล์รูปภาพ / Please select an image file" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors({ ...errors, photo: "ขนาดไฟล์ต้องไม่เกิน 5MB / File must be under 5MB" });
+      return;
+    }
+
+    setErrors({ ...errors, photo: "" });
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoRemoved(false); // picking a new file cancels any pending removal
+  };
+
+  const removePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setPhotoRemoved(true); // remember to null this out in the DB on save
   };
 
   const validate = () => {
@@ -85,6 +124,41 @@ export default function EditProductPage() {
 
     setSaving(true);
 
+    // Resolve what photo_url should end up being:
+    // - a new file was picked      -> upload it, use the new public URL
+    // - user hit "remove photo"    -> null
+    // - neither happened           -> keep whatever was already saved
+    let photoUrl: string | null = existingPhotoUrl;
+
+    if (photoFile) {
+      setUploading(true);
+      const fileExt = photoFile.name.split(".").pop();
+      const fileName = `${form.barcode || Date.now()}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-photos")
+        .upload(fileName, photoFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      setUploading(false);
+
+      if (uploadError) {
+        setSaving(false);
+        alert("อัปโหลดรูปไม่สำเร็จ / Photo upload failed: " + uploadError.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("product-photos")
+        .getPublicUrl(fileName);
+
+      photoUrl = urlData.publicUrl;
+    } else if (photoRemoved) {
+      photoUrl = null;
+    }
+
     // stock_qty / expiration_date are intentionally NOT updated here —
     // changing quantity or expiry now happens through Restock on the
     // inventory page, which creates/adjusts stock_batches rows instead.
@@ -97,6 +171,7 @@ export default function EditProductPage() {
         cost: Number(form.cost),
         min_stock: Number(form.minStock),
         category: form.category,
+        photo_url: photoUrl,
       })
       .eq("id", id);
 
@@ -141,6 +216,43 @@ export default function EditProductPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* รูปสินค้า */}
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <h2 className="text-sm font-bold text-gray-600">
+              รูปสินค้า / Product Photo
+            </h2>
+
+            {photoPreview ? (
+              <div className="relative w-32 h-32">
+                <img
+                  src={photoPreview}
+                  alt="Preview"
+                  className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center shadow"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition text-gray-400 text-xs gap-1">
+                <span className="text-2xl">📷</span>
+                <span>เพิ่มรูป / Add Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+              </label>
+            )}
+            {errors.photo && <p className="text-red-500 text-xs">{errors.photo}</p>}
+          </div>
 
           {/* ข้อมูลทั่วไป */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
@@ -285,7 +397,7 @@ export default function EditProductPage() {
               disabled={saving}
               className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {saving ? "กำลังบันทึก... / Saving..." : "บันทึกการแก้ไข / Save Changes"}
+              {saving || uploading ? "กำลังบันทึก... / Saving..." : "บันทึกการแก้ไข / Save Changes"}
             </button>
           </div>
 

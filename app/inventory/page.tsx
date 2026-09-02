@@ -143,10 +143,10 @@ export default function InventoryPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
+            <h1 className="text-2xl sm:text-2xl font-bold text-gray-800 leading-tight">
               คลังสินค้า
             </h1>
-            <p className="text-sm text-gray-400">Inventory</p>
+            <p className="text-xl text-gray-400">Inventory</p>
           </div>
           <button
             onClick={() => router.push("/inventory/add")}
@@ -294,28 +294,28 @@ export default function InventoryPage() {
 
                     {/* Meta info — barcode, category, price, cost, profit, all preserved */}
                     <div className="mt-2 space-y-0.5">
-                      <p className="text-xs text-gray-500">
-                        <span className="text-gray-400">Barcode:</span> {product.barcode}
+                      <p className="text-sm text-gray-500">
+                        <span className="text-gray-400">บาร์โค้ด / Barcode:</span> {product.barcode}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm text-gray-500">
                         <span className="text-gray-400">หมวดหมู่ / Category:</span> {product.category}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm text-gray-500">
                         <span className="text-gray-400">ราคา / Price:</span>{" "}
                         <span className="font-medium text-gray-700">฿{product.price}</span>
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm text-gray-500">
                         <span className="text-gray-400">ทุน / Cost:</span>{" "}
                         <span className="font-medium text-gray-700">฿{product.cost}</span>
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm text-gray-500">
                         <span className="text-gray-400">กำไร / Profit:</span>{" "}
                         <span className="font-medium text-green-600">
                           ฿{product.price - product.cost}
                         </span>
                       </p>
                       {nearestExpiry && (
-                        <p className={`text-xs font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                        <p className={`text-sm font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
                           EXP ใกล้สุด: {nearestExpiry}
                           {isExpiringSoon && (
                             <>
@@ -333,19 +333,19 @@ export default function InventoryPage() {
                   <div className="border-t border-gray-100 flex flex-col">
                     <button
                       onClick={() => openRestock(product)}
-                      className="py-2.5 text-xs font-medium text-green-600 hover:bg-green-50 active:bg-green-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
+                      className="py-2.5 text-sm font-medium text-green-600 hover:bg-green-50 active:bg-green-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
                     >
                       📥 <span>รับสินค้า / Restock</span>
                     </button>
                     <button
                       onClick={() => router.push(`/inventory/edit/${product.id}`)}
-                      className="py-2.5 text-xs font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
+                      className="py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
                     >
                       ✏️ <span>แก้ไข / Edit</span>
                     </button>
                     <button
                       onClick={() => handleDelete(product.id, product.name)}
-                      className="py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1"
+                      className="py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1"
                     >
                       🗑️ <span>ลบ / Delete</span>
                     </button>
