@@ -3,24 +3,19 @@ import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
 interface BarcodeScannerProps {
-  // Called every time a barcode is successfully decoded from the camera.
   onScan: (decodedText: string) => void;
-  // Optional: pause scanning briefly after a hit, so the same barcode
-  // sitting in front of the camera doesn't get scanned 10x in a row.
   cooldownMs?: number;
 }
 
-// Turns whatever the browser/library throws into a short, readable message —
-// so testing on a phone (no dev console handy) still tells you what's wrong.
 function describeCameraError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   const name = err instanceof Error ? err.name : "";
 
   if (typeof window !== "undefined" && !window.isSecureContext) {
-    return "ต้องเปิดผ่าน HTTPS หรือ localhost เท่านั้น กล้องจะไม่ทำงานบน http:// ธรรมดา / Camera requires HTTPS or localhost — plain http:// (like an IP address) won't work.";
+    return "ต้องเปิดผ่าน HTTPS หรือ localhost เท่านั้น / Camera requires HTTPS or localhost.";
   }
   if (name === "NotAllowedError" || message.includes("Permission")) {
-    return "ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาอนุญาตการเข้าถึงกล้องในเบราว์เซอร์ / Camera permission was denied — allow camera access in your browser settings.";
+    return "ไม่ได้รับอนุญาตให้ใช้กล้อง / Camera permission was denied.";
   }
   if (name === "NotFoundError" || message.includes("Requested device not found")) {
     return "ไม่พบกล้องบนอุปกรณ์นี้ / No camera was found on this device.";
@@ -39,48 +34,74 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let scanner: Html5Qrcode;
+    let cancelled = false;
+    setError(null);
+    setReady(false);
 
-    try {
-      scanner = new Html5Qrcode(containerId);
-      scannerRef.current = scanner;
-    } catch (err) {
-      setError(describeCameraError(err));
-      return;
-    }
+    const scanner = new Html5Qrcode(containerId);
+    scannerRef.current = scanner;
 
-    scanner
+    const startPromise = scanner
       .start(
-        { facingMode: "environment" }, // rear camera on phones
+        // videoConstraints: request a higher resolution feed — low-res
+        // streams (often the default) make 1D barcodes very hard to decode
+        // since they need sharp resolution along one axis.
+        {
+          facingMode: "environment",
+        },
         {
           fps: 10,
-          qrbox: { width: 250, height: 120 }, // wide box suits 1D barcodes
+          // NOTE: qrbox intentionally omitted for now — cropping to a box
+          // that doesn't match your actual video resolution/aspect ratio
+          // can silently make the library scan the wrong region and never
+          // find anything. Once scanning works, we can reintroduce a qrbox
+          // sized correctly for your device.
+          videoConstraints: {
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         },
         (decodedText) => {
+          console.log("✅ DECODED:", decodedText); // TEMP DEBUG — remove later
           const now = Date.now();
-          if (now - lastScanRef.current < cooldownMs) return; // debounce
+          if (now - lastScanRef.current < cooldownMs) return;
           lastScanRef.current = now;
           onScan(decodedText);
         },
-        () => {
-          // Fires continuously while no barcode is in frame — intentionally
-          // ignored, this isn't an error, just "nothing found this frame".
+        (errorMessage) => {
+          // TEMP DEBUG — logs every frame where no barcode was found.
+          // If you see this repeating in the console, the scan loop IS
+          // running; if you see nothing at all, the loop never started.
+          console.log("…scanning, no match this frame:", errorMessage);
         }
       )
-      .then(() => setReady(true))
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
       .catch((err) => {
         console.error("Failed to start camera:", err);
-        setError(describeCameraError(err));
+        if (!cancelled) setError(describeCameraError(err));
       });
 
-    // Cleanup: stop the camera when this component unmounts, otherwise
-    // the camera stays "on" in the browser even after leaving the page.
     return () => {
-      scanner
-        .stop()
-        .then(() => scanner.clear())
+      cancelled = true;
+      startPromise
         .catch(() => {
-          /* already stopped, ignore */
+          /* start already failed, nothing to stop */
+        })
+        .finally(() => {
+          const s = scannerRef.current;
+          if (!s) return;
+          if (s.getState && s.getState() === 2 /* SCANNING */) {
+            s.stop()
+              .then(() => s.clear())
+              .catch(() => {
+                /* already stopped, ignore */
+              });
+          } else {
+            s.clear();
+          }
         });
     };
   }, [onScan, cooldownMs]);
@@ -89,15 +110,12 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
     <div className="relative w-full h-full">
       <div id={containerId} className="w-full h-full" />
 
-      {/* Loading state — shown until the camera stream actually starts */}
       {!ready && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500 text-sm font-medium pointer-events-none">
           📷 กำลังเปิดกล้อง... / Starting camera...
         </div>
       )}
 
-      {/* Error state — visible on-screen so it's readable on a phone
-          without needing to open dev tools */}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-red-50 p-3">
           <p className="text-red-600 text-xs font-medium text-center leading-snug">
