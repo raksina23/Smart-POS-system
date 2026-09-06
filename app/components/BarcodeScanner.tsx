@@ -1,6 +1,10 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import {
+  BrowserMultiFormatReader,
+  IScannerControls,
+} from "@zxing/browser";
+import { DecodeHintType, BarcodeFormat, NotFoundException } from "@zxing/library";
 
 interface BarcodeScannerProps {
   onScan: (decodedText: string) => void;
@@ -27,91 +31,121 @@ function describeCameraError(err: unknown): string {
 }
 
 export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeScannerProps) {
-  const containerId = "barcode-scanner-region";
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
   const lastScanRef = useRef<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
     setReady(false);
 
-    // formatsToSupport belongs here, in the constructor — NOT in start()'s
-    // scan config. Without it, the library leans toward QR-only detection
-    // and often misses 1D barcodes (EAN/UPC/Code128) entirely.
-    const scanner = new Html5Qrcode(containerId, {
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.QR_CODE,
-      ],
-      verbose: false,
-    });
-    scannerRef.current = scanner;
+    // Explicitly restrict to the barcode formats you actually need —
+    // ZXing tries fewer formats per frame this way, which speeds up
+    // and improves decode accuracy versus scanning for everything.
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.QR_CODE,
+    ]);
+    hints.set(DecodeHintType.TRY_HARDER, true);
 
-    const startPromise = scanner
-      .start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          videoConstraints: {
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        },
-        (decodedText) => {
-          console.log("✅ DECODED:", decodedText); // TEMP DEBUG — remove once confirmed working
-          const now = Date.now();
-          if (now - lastScanRef.current < cooldownMs) return;
-          lastScanRef.current = now;
-          onScan(decodedText);
-        },
-        (errorMessage) => {
-          // TEMP DEBUG — fires per-frame when nothing is found; safe to
-          // remove this console.log once scanning is confirmed reliable.
-          console.log("…scanning, no match this frame:", errorMessage);
+    const reader = new BrowserMultiFormatReader(hints);
+
+    const start = async () => {
+      try {
+        const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
+        if (videoInputDevices.length === 0) {
+          throw Object.assign(new Error("Requested device not found"), { name: "NotFoundError" });
         }
-      )
-      .then(() => {
-        if (!cancelled) setReady(true);
-      })
-      .catch((err) => {
+
+        // Prefer the back/environment camera on phones
+        const backCamera =
+          videoInputDevices.find((d) => /back|rear|environment/i.test(d.label)) ??
+          videoInputDevices[videoInputDevices.length - 1];
+
+        const controls = await reader.decodeFromVideoDevice(
+          backCamera.deviceId,
+          videoRef.current!,
+          (result, err) => {
+            if (result) {
+              const text = result.getText();
+              const now = Date.now();
+              if (now - lastScanRef.current < cooldownMs) return;
+              lastScanRef.current = now;
+              console.log("✅ DECODED:", text); // remove once confirmed reliable
+              onScan(text);
+              return;
+            }
+            // NotFoundException fires continuously while nothing is in
+            // frame yet — expected, not a real error, so we ignore it.
+            if (err && !(err instanceof NotFoundException)) {
+              console.log("scan frame error:", err);
+            }
+          }
+        );
+
+        if (cancelled) {
+          controls.stop();
+          return;
+        }
+
+        controlsRef.current = controls;
+        setReady(true);
+
+        // Check if this device/camera supports a torch (flashlight)
+        const track = (videoRef.current?.srcObject as MediaStream)
+          ?.getVideoTracks()?.[0];
+        const capabilities = track?.getCapabilities?.() as
+          | (MediaTrackCapabilities & { torch?: boolean })
+          | undefined;
+        setTorchSupported(!!capabilities?.torch);
+      } catch (err) {
         console.error("Failed to start camera:", err);
         if (!cancelled) setError(describeCameraError(err));
-      });
+      }
+    };
+
+    start();
 
     return () => {
       cancelled = true;
-      startPromise
-        .catch(() => {
-          /* start already failed, nothing to stop */
-        })
-        .finally(() => {
-          const s = scannerRef.current;
-          if (!s) return;
-          if (s.getState && s.getState() === 2 /* SCANNING */) {
-            s.stop()
-              .then(() => s.clear())
-              .catch(() => {
-                /* already stopped, ignore */
-              });
-          } else {
-            s.clear();
-          }
-        });
+      controlsRef.current?.stop();
+      controlsRef.current = null;
     };
   }, [onScan, cooldownMs]);
 
+  const toggleTorch = async () => {
+    const track = (videoRef.current?.srcObject as MediaStream)?.getVideoTracks()?.[0];
+    if (!track) return;
+    try {
+      const next = !torchOn;
+      await track.applyConstraints({
+        advanced: [{ torch: next } as any],
+      });
+      setTorchOn(next);
+    } catch (err) {
+      console.log("Torch toggle failed:", err);
+    }
+  };
+
   return (
-    <div className="relative w-full h-full">
-      <div id={containerId} className="w-full h-full" />
+    <div className="relative w-full h-full bg-black">
+      <video
+        ref={videoRef}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+      />
 
       {!ready && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500 text-sm font-medium pointer-events-none">
@@ -125,6 +159,16 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
             ⚠️ {error}
           </p>
         </div>
+      )}
+
+      {ready && torchSupported && (
+        <button
+          type="button"
+          onClick={toggleTorch}
+          className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-md z-10"
+        >
+          {torchOn ? "🔦 ปิดไฟฉาย" : "🔦 เปิดไฟฉาย"}
+        </button>
       )}
     </div>
   );
