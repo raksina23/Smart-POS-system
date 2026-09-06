@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 interface BarcodeScannerProps {
   onScan: (decodedText: string) => void;
@@ -38,24 +38,28 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
     setError(null);
     setReady(false);
 
-    const scanner = new Html5Qrcode(containerId);
+    // formatsToSupport belongs here, in the constructor — NOT in start()'s
+    // scan config. Without it, the library leans toward QR-only detection
+    // and often misses 1D barcodes (EAN/UPC/Code128) entirely.
+    const scanner = new Html5Qrcode(containerId, {
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.QR_CODE,
+      ],
+      verbose: false,
+    });
     scannerRef.current = scanner;
 
     const startPromise = scanner
       .start(
-        // videoConstraints: request a higher resolution feed — low-res
-        // streams (often the default) make 1D barcodes very hard to decode
-        // since they need sharp resolution along one axis.
-        {
-          facingMode: "environment",
-        },
+        { facingMode: "environment" },
         {
           fps: 10,
-          // NOTE: qrbox intentionally omitted for now — cropping to a box
-          // that doesn't match your actual video resolution/aspect ratio
-          // can silently make the library scan the wrong region and never
-          // find anything. Once scanning works, we can reintroduce a qrbox
-          // sized correctly for your device.
           videoConstraints: {
             facingMode: "environment",
             width: { ideal: 1280 },
@@ -63,16 +67,15 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
           },
         },
         (decodedText) => {
-          console.log("✅ DECODED:", decodedText); // TEMP DEBUG — remove later
+          console.log("✅ DECODED:", decodedText); // TEMP DEBUG — remove once confirmed working
           const now = Date.now();
           if (now - lastScanRef.current < cooldownMs) return;
           lastScanRef.current = now;
           onScan(decodedText);
         },
         (errorMessage) => {
-          // TEMP DEBUG — logs every frame where no barcode was found.
-          // If you see this repeating in the console, the scan loop IS
-          // running; if you see nothing at all, the loop never started.
+          // TEMP DEBUG — fires per-frame when nothing is found; safe to
+          // remove this console.log once scanning is confirmed reliable.
           console.log("…scanning, no match this frame:", errorMessage);
         }
       )
