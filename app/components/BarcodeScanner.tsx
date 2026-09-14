@@ -82,14 +82,14 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
               const now = Date.now();
               if (now - lastScanRef.current < cooldownMs) return;
               lastScanRef.current = now;
-              console.log("✅ DECODED:", text); // remove once confirmed reliable
+              
               onScan(text);
               return;
             }
             // NotFoundException fires continuously while nothing is in
             // frame yet — expected, not a real error, so we ignore it.
             if (err && !(err instanceof NotFoundException)) {
-              console.log("scan frame error:", err);
+              console.error("scan frame error:", err);
             }
           }
         );

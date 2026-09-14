@@ -4,6 +4,12 @@ import { useRouter, useParams } from "next/navigation";
 import Navbar from "../../../components/Navbar";
 import { supabase } from "../../../lib/supabase";
 
+interface Category {
+  id: string;
+  name: string;
+  shelf_life_days: number | null;
+}
+
 export default function EditProductPage() {
   const router = useRouter();
   const params = useParams();
@@ -23,21 +29,30 @@ export default function EditProductPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // --- photo state ---
-  // existingPhotoUrl: what's currently saved in the DB (from initial fetch)
-  // photoFile: a newly picked file, not yet uploaded
-  // photoPreview: what to actually show in the UI (existing OR new OR none)
-  // photoRemoved: user explicitly cleared the photo, so submit should null it out
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoRemoved, setPhotoRemoved] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name, shelf_life_days")
+        .order("name", { ascending: true });
+
+      if (!error && data) setCategories(data);
+      setLoadingCategories(false);
+    };
+    fetchCategories();
+  }, []);
+
   useEffect(() => {
     const fetchProduct = async () => {
-      // Note: stock_qty / expiration_date are no longer read here — they
-      // live on stock_batches now and are managed via Restock, not Edit.
       const { data, error } = await supabase
         .from("products")
         .select("id, name, barcode, price, cost, min_stock, category, photo_url")
@@ -91,13 +106,13 @@ export default function EditProductPage() {
     setErrors({ ...errors, photo: "" });
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
-    setPhotoRemoved(false); // picking a new file cancels any pending removal
+    setPhotoRemoved(false);
   };
 
   const removePhoto = () => {
     setPhotoFile(null);
     setPhotoPreview(null);
-    setPhotoRemoved(true); // remember to null this out in the DB on save
+    setPhotoRemoved(true);
   };
 
   const validate = () => {
@@ -124,10 +139,6 @@ export default function EditProductPage() {
 
     setSaving(true);
 
-    // Resolve what photo_url should end up being:
-    // - a new file was picked      -> upload it, use the new public URL
-    // - user hit "remove photo"    -> null
-    // - neither happened           -> keep whatever was already saved
     let photoUrl: string | null = existingPhotoUrl;
 
     if (photoFile) {
@@ -159,9 +170,6 @@ export default function EditProductPage() {
       photoUrl = null;
     }
 
-    // stock_qty / expiration_date are intentionally NOT updated here —
-    // changing quantity or expiry now happens through Restock on the
-    // inventory page, which creates/adjusts stock_batches rows instead.
     const { error } = await supabase
       .from("products")
       .update({
@@ -202,7 +210,6 @@ export default function EditProductPage() {
       <Navbar role="Admin" />
       <div className="max-w-2xl mx-auto p-4 md:p-6">
 
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => router.push("/inventory")}
@@ -217,7 +224,6 @@ export default function EditProductPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* รูปสินค้า */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <h2 className="text-sm font-bold text-gray-600">
               รูปสินค้า / Product Photo
@@ -254,7 +260,6 @@ export default function EditProductPage() {
             {errors.photo && <p className="text-red-500 text-xs">{errors.photo}</p>}
           </div>
 
-          {/* ข้อมูลทั่วไป */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">ข้อมูลทั่วไป / General Info</h2>
 
@@ -294,21 +299,28 @@ export default function EditProductPage() {
                 name="category"
                 value={form.category}
                 onChange={handleChange}
+                disabled={loadingCategories}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
               >
-                <option value="">เลือกหมวดหมู่ / Select category</option>
-                <option value="เครื่องดื่ม">เครื่องดื่ม (Beverages)</option>
-                <option value="เครื่องปรุง">เครื่องปรุง (Condiments)</option>
-                <option value="ขนม">ขนม (Snacks)</option>
-                <option value="เบ็ดเตล็ด">เบ็ดเตล็ด (Miscellaneous)</option>
-                <option value="เครื่องสำอาง">เครื่องสำอาง (Cosmetics)</option>
-                <option value="ลูกอม">ลูกอม (Candy)</option>
+                <option value="">
+                  {loadingCategories ? "กำลังโหลด... / Loading..." : "เลือกหมวดหมู่ / Select category"}
+                </option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                    {cat.shelf_life_days != null ? ` (อายุ ${cat.shelf_life_days} วัน)` : ""}
+                  </option>
+                ))}
+                {/* keep the product's current category selectable even if it
+                    was later deleted/renamed in the categories table */}
+                {form.category && !categories.some((c) => c.name === form.category) && (
+                  <option value={form.category}>{form.category} (ไม่พบในระบบ)</option>
+                )}
               </select>
               {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
             </div>
           </div>
 
-          {/* ราคา */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">ราคา / Pricing</h2>
 
@@ -358,7 +370,6 @@ export default function EditProductPage() {
             )}
           </div>
 
-          {/* จำนวนขั้นต่ำ — stock quantity itself is no longer editable here */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">จำนวนขั้นต่ำ / Minimum Stock</h2>
             <p className="text-xs text-gray-400 -mt-2">
@@ -383,7 +394,6 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* ปุ่ม */}
           <div className="flex gap-3 pb-6">
             <button
               type="button"

@@ -1,8 +1,22 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../../components/Navbar";
 import { supabase } from "../../lib/supabase";
+
+interface Category {
+  id: string;
+  name: string;
+  shelf_life_days: number | null;
+}
+
+// Formats a Date as YYYY-MM-DD for an <input type="date"> value
+function toDateInputValue(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 export default function AddProductPage() {
   const router = useRouter();
@@ -23,11 +37,51 @@ export default function AddProductPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  // Tracks whether the user has manually touched the expiry date field —
+  // once they have, we stop overwriting it when category changes.
+  const [expDateTouched, setExpDateTouched] = useState(false);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name, shelf_life_days")
+        .order("name", { ascending: true });
+
+      if (!error && data) setCategories(data);
+      setLoadingCategories(false);
+    };
+    fetchCategories();
+  }, []);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: "" });
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+
+    if (name === "expDate") {
+      setExpDateTouched(true);
+    }
+
+    if (name === "category") {
+      const selected = categories.find((c) => c.name === value);
+      // Auto-calculate expiry from this category's shelf life, but only
+      // if the user hasn't manually edited the expiry date themselves.
+      if (!expDateTouched && selected?.shelf_life_days != null) {
+        const computed = new Date();
+        computed.setDate(computed.getDate() + selected.shelf_life_days);
+        setForm((prev) => ({
+          ...prev,
+          category: value,
+          expDate: toDateInputValue(computed),
+        }));
+        return;
+      }
+    }
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,7 +134,6 @@ export default function AddProductPage() {
 
     let photoUrl: string | null = null;
 
-    // Upload photo first, if one was selected
     if (photoFile) {
       setUploading(true);
       const fileExt = photoFile.name.split(".").pop();
@@ -107,9 +160,6 @@ export default function AddProductPage() {
       photoUrl = urlData.publicUrl;
     }
 
-    // 1. Create the product itself — no stock_qty / expiration_date anymore,
-    // those live on stock_batches now. .select().single() gets back the
-    // new row (including its generated id) so we can attach a batch to it.
     const { data: newProduct, error: productError } = await supabase
       .from("products")
       .insert({
@@ -129,9 +179,6 @@ export default function AddProductPage() {
       return;
     }
 
-    // 2. Create its first stock batch, using the quantity/expiry the user
-    // entered above. Every future shipment adds another batch via Restock
-    // on the inventory page instead of coming back here.
     const { error: batchError } = await supabase.from("stock_batches").insert({
       product_id: newProduct.id,
       quantity: Number(form.stock),
@@ -151,12 +198,13 @@ export default function AddProductPage() {
     router.push("/inventory");
   };
 
+  const selectedCategory = categories.find((c) => c.name === form.category);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar role="Admin" />
       <div className="max-w-2xl mx-auto p-4 md:p-6">
 
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => router.push("/inventory")}
@@ -252,17 +300,26 @@ export default function AddProductPage() {
                 name="category"
                 value={form.category}
                 onChange={handleChange}
+                disabled={loadingCategories}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
               >
-                <option value="">เลือกหมวดหมู่ / Select category</option>
-                <option value="เครื่องดื่ม">เครื่องดื่ม (Beverages)</option>
-                <option value="เครื่องปรุง">เครื่องปรุง (Condiments)</option>
-                <option value="ขนม">ขนม (Snacks)</option>
-                <option value="เบ็ดเตล็ด">เบ็ดเตล็ด (Miscellaneous)</option>
-                <option value="เครื่องสำอาง">เครื่องสำอาง (Cosmetics)</option>
-                <option value="ลูกอม">ลูกอม (Candy)</option>
+                <option value="">
+                  {loadingCategories ? "กำลังโหลด... / Loading..." : "เลือกหมวดหมู่ / Select category"}
+                </option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                    {cat.shelf_life_days != null ? ` (อายุ ${cat.shelf_life_days} วัน)` : ""}
+                  </option>
+                ))}
               </select>
               {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
+              {categories.length === 0 && !loadingCategories && (
+                <p className="text-xs text-amber-600 mt-1">
+                  ยังไม่มีหมวดหมู่ในระบบ กรุณาไปเพิ่มที่หน้า "จัดการหมวดหมู่" ก่อน /
+                  No categories yet — add some on the Categories page first.
+                </p>
+              )}
             </div>
           </div>
 
@@ -316,7 +373,7 @@ export default function AddProductPage() {
             )}
           </div>
 
-          {/* Stock — this becomes the product's FIRST batch, not a product field */}
+          {/* Stock */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">
               สต็อกเริ่มต้น / Initial Stock Batch
@@ -361,11 +418,23 @@ export default function AddProductPage() {
             </div>
           </div>
 
-          {/* วันหมดอายุ ของล็อตเริ่มต้น */}
+          {/* วันหมดอายุ — auto-calculated from category, still editable */}
           <div className="bg-white rounded-xl border border-gray-100 p-4">
-            <h2 className="text-sm font-bold text-gray-600 mb-3">
+            <h2 className="text-sm font-bold text-gray-600 mb-1">
               วันหมดอายุของล็อตนี้ / This Batch's Expiry Date
             </h2>
+            {selectedCategory?.shelf_life_days != null ? (
+              <p className="text-xs text-gray-400 mb-3">
+                คำนวณอัตโนมัติจากหมวดหมู่ "{selectedCategory.name}" (อายุ {selectedCategory.shelf_life_days} วัน)
+                — แก้ไขได้หากวันที่จริงต่างจากนี้ /
+                Auto-calculated from the category's shelf life — adjust if the actual date differs.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-400 mb-3">
+                หมวดหมู่นี้ยังไม่กำหนดอายุสินค้า กรุณาเลือกวันหมดอายุเอง /
+                This category has no shelf life set — please pick the expiry date manually.
+              </p>
+            )}
             <input
               type="date"
               name="expDate"
