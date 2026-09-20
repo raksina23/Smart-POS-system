@@ -43,6 +43,11 @@ function computeCategoryDiscountPrice(price: number, cost: number, discountPerce
   return Math.max(rawPrice, cost);
 }
 
+const getRestockAction = (activeBatchCount: number) =>
+  activeBatchCount >= 2
+    ? { label: "ควรเติมสต็อก / Restock from backup lot", color: "text-orange-600" }
+    : { label: "ควรซื้อของเข้าร้านเพิ่ม / Buy more stock", color: "text-red-600" };
+
 export default function DashboardPage() {
   const router = useRouter();
   const [expiringProducts, setExpiringProducts] = useState<ExpiringProduct[]>([]);
@@ -149,9 +154,7 @@ export default function DashboardPage() {
         };
       });
 
-      const low = withTotals.filter(
-        (p) => p.stock_qty <= p.min_stock && p.activeBatchCount <= 1
-      );
+      const low = withTotals.filter((p) => p.stock_qty <= p.min_stock);
       setLowStockProducts(low);
     }
   };
@@ -546,6 +549,9 @@ export default function DashboardPage() {
                                   (ขั้นต่ำ {item.min_stock} ·{" "}
                                   {item.activeBatchCount === 0 ? "ไม่มีล็อตสำรอง" : "เหลือล็อตเดียว"})
                                 </span>
+                              </p>
+                              <p className={`text-xs font-semibold mt-0.5 ${getRestockAction(item.activeBatchCount).color}`}>
+                                 {getRestockAction(item.activeBatchCount).label}
                               </p>
                             </div>
                           </div>

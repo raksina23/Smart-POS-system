@@ -1,6 +1,7 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchAlertCounts, AlertCounts } from "../lib/alerts";
 
 export default function Navbar({ role }: { role: string }) {
   const router = useRouter();
@@ -21,14 +22,53 @@ export default function Navbar({ role }: { role: string }) {
   const isIdAdmin = role?.toLowerCase() === "admin";
   const links = isIdAdmin ? adminLinks : cashierLinks;
 
+  // --- Alerts: bell badge + one-time-per-session pop-up ---
+  // Only relevant to admin — cashiers don't have access to Inventory/
+  // Dashboard anyway, so there's nothing actionable for them to do here.
+  const [alertCounts, setAlertCounts] = useState<AlertCounts>({
+    expiringCount: 0,
+    lowStockCount: 0,
+  });
+  const [bellOpen, setBellOpen] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+
+  useEffect(() => {
+    if (!isIdAdmin) return;
+
+    const loadAlerts = async () => {
+      const counts = await fetchAlertCounts();
+      setAlertCounts(counts);
+
+      const total = counts.expiringCount + counts.lowStockCount;
+      const alreadyShown = sessionStorage.getItem("alertsPopupShown");
+
+      if (total > 0 && !alreadyShown) {
+        setShowPopup(true);
+        sessionStorage.setItem("alertsPopupShown", "true");
+      }
+    };
+
+    loadAlerts();
+  }, [isIdAdmin]);
+
+  const totalAlerts = alertCounts.expiringCount + alertCounts.lowStockCount;
+
   const handleNavigate = (path: string) => {
     router.push(path);
     setMenuOpen(false);
+    setBellOpen(false);
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem("alertsPopupShown"); // fresh popup on next login
     router.push("/");
     setMenuOpen(false);
+  };
+
+  const goToDashboard = () => {
+    setShowPopup(false);
+    setBellOpen(false);
+    router.push("/dashboard");
   };
 
   return (
@@ -39,7 +79,7 @@ export default function Navbar({ role }: { role: string }) {
 
         <div className="flex items-center gap-2">
           {/* Desktop links */}
-          <div className="hidden md:flex gap-2">
+          <div className="hidden md:flex gap-2 items-center">
             {links.map((link) => (
               <button
                 key={link.path}
@@ -53,6 +93,63 @@ export default function Navbar({ role }: { role: string }) {
                 {link.label}
               </button>
             ))}
+
+            {/* Bell — admin only */}
+            {isIdAdmin && (
+              <div className="relative">
+                <button
+                  onClick={() => setBellOpen(!bellOpen)}
+                  className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-lg"
+                  aria-label="การแจ้งเตือน"
+                >
+                  🔔
+                  {totalAlerts > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center px-1">
+                      {totalAlerts}
+                    </span>
+                  )}
+                </button>
+
+                {bellOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                    <div className="p-3 border-b border-gray-100">
+                      <p className="text-sm font-bold text-gray-700">การแจ้งเตือน / Alerts</p>
+                    </div>
+                    {totalAlerts === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-4">
+                        ไม่มีรายการแจ้งเตือน
+                      </p>
+                    ) : (
+                      <div className="p-2 space-y-1">
+                        {alertCounts.expiringCount > 0 && (
+                          <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-red-50">
+                            <span className="text-sm text-red-700">🕐 ใกล้หมดอายุ</span>
+                            <span className="text-sm font-bold text-red-600">
+                              {alertCounts.expiringCount}
+                            </span>
+                          </div>
+                        )}
+                        {alertCounts.lowStockCount > 0 && (
+                          <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-orange-50">
+                            <span className="text-sm text-orange-700">📦 สต็อกต่ำ</span>
+                            <span className="text-sm font-bold text-orange-600">
+                              {alertCounts.lowStockCount}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <button
+                      onClick={goToDashboard}
+                      className="w-full py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50 transition border-t border-gray-100"
+                    >
+                      ดูรายละเอียด / View Dashboard
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={handleLogout}
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition"
@@ -60,6 +157,22 @@ export default function Navbar({ role }: { role: string }) {
               Logout
             </button>
           </div>
+
+          {/* Bell — mobile, shown next to hamburger */}
+          {isIdAdmin && (
+            <button
+              onClick={() => handleNavigate("/dashboard")}
+              className="md:hidden relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-lg"
+              aria-label="การแจ้งเตือน"
+            >
+              🔔
+              {totalAlerts > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center px-1">
+                  {totalAlerts}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Hamburger button — mobile only */}
           <button
@@ -133,6 +246,66 @@ export default function Navbar({ role }: { role: string }) {
           </button>
         </div>
       </div>
+
+      {/* One-time-per-session pop-up alert */}
+      {showPopup && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                  🔔 มีรายการที่ต้องดู
+                </h2>
+                <p className="text-xs text-gray-400">Attention needed</p>
+              </div>
+              <button
+                onClick={() => setShowPopup(false)}
+                className="text-gray-300 hover:text-gray-500 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {alertCounts.expiringCount > 0 && (
+                <div className="flex items-center justify-between bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  <span className="text-sm font-medium text-red-700">
+                    🕐 สินค้าใกล้หมดอายุ
+                  </span>
+                  <span className="text-lg font-bold text-red-600">
+                    {alertCounts.expiringCount} รายการ
+                  </span>
+                </div>
+              )}
+              {alertCounts.lowStockCount > 0 && (
+                <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+                  <span className="text-sm font-medium text-orange-700">
+                    📦 สต็อกต่ำ
+                  </span>
+                  <span className="text-lg font-bold text-orange-600">
+                    {alertCounts.lowStockCount} รายการ
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setShowPopup(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
+              >
+                ปิด / Dismiss
+              </button>
+              <button
+                onClick={goToDashboard}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700"
+              >
+                ดูรายละเอียด / View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
