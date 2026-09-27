@@ -39,10 +39,10 @@ export default function UserManagementPage() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!form.email) newErrors.email = "กรุณากรอก Email";
-    else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Email ไม่ถูกต้อง";
-    if (!form.password) newErrors.password = "กรุณากรอก Password";
-    else if (form.password.length < 6) newErrors.password = "Password ต้องมีอย่างน้อย 6 ตัวอักษร";
+    if (!form.email) newErrors.email = "กรุณากรอก Email / Please enter an email";
+    else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Email ไม่ถูกต้อง / Invalid email";
+    if (!form.password) newErrors.password = "กรุณากรอก Password / Please enter a password";
+    else if (form.password.length < 6) newErrors.password = "Password ต้องมีอย่างน้อย 6 ตัวอักษร / Password must be at least 6 characters";
     return newErrors;
   };
 
@@ -65,30 +65,34 @@ export default function UserManagementPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        alert("เกิดข้อผิดพลาด: " + result.error);
+        // Contains a variable (server error message) — translate the
+        // prefix only, don't duplicate the variable itself.
+        alert("เกิดข้อผิดพลาด / Error: " + result.error);
         setSaving(false);
         return;
       }
 
+      // Contains a variable (email) — single-language for readability.
       alert(`เพิ่มผู้ใช้ "${form.email}" สำเร็จ!`);
       setForm({ email: "", password: "", role: "cashier" });
       setErrors({});
       setShowForm(false);
       fetchUsers();
     } catch {
-      alert("เกิดข้อผิดพลาดที่ไม่คาดคิด");
+      alert("เกิดข้อผิดพลาดที่ไม่คาดคิด / An unexpected error occurred");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string, email: string) => {
+    // Contains a variable (email) — single-language.
     if (!confirm(`ต้องการลบผู้ใช้ "${email}" หรือไม่?`)) return;
 
     const { error } = await supabase.from("profiles").delete().eq("id", id);
 
     if (error) {
-      alert("เกิดข้อผิดพลาด: " + error.message);
+      alert("เกิดข้อผิดพลาด / Error: " + error.message);
       return;
     }
     fetchUsers();
@@ -96,6 +100,7 @@ export default function UserManagementPage() {
 
   const handleChangeRole = async (id: string, currentRole: string) => {
     const newRole = currentRole === "admin" ? "cashier" : "admin";
+    // Contains a variable (newRole) — single-language.
     if (!confirm(`เปลี่ยน role เป็น "${newRole}" หรือไม่?`)) return;
 
     const { error } = await supabase
@@ -104,7 +109,7 @@ export default function UserManagementPage() {
       .eq("id", id);
 
     if (error) {
-      alert("เกิดข้อผิดพลาด: " + error.message);
+      alert("เกิดข้อผิดพลาด / Error: " + error.message);
       return;
     }
     fetchUsers();
@@ -128,13 +133,13 @@ export default function UserManagementPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="bg-gray-100 text-gray-500 text-xs px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap">
-              {users.length} คน
+              {users.length} คน / {users.length} users
             </span>
             <button
               onClick={() => { setShowForm(!showForm); setErrors({}); setShowPassword(false); }}
               className="bg-blue-600 text-white px-3.5 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition whitespace-nowrap"
             >
-              {showForm ? "✕ ยกเลิก" : "+ เพิ่มผู้ใช้"}
+              {showForm ? "✕ ยกเลิก / Cancel" : "+ เพิ่มผู้ใช้ / Add User"}
             </button>
           </div>
         </div>
@@ -143,7 +148,7 @@ export default function UserManagementPage() {
         {showForm && (
           <div className="bg-white rounded-2xl border border-blue-100 p-4 sm:p-5 shadow-sm">
             <h2 className="text-sm font-bold text-gray-700 mb-4">
-              👤 เพิ่มผู้ใช้ใหม่
+              👤 เพิ่มผู้ใช้ใหม่ / Add New User
             </h2>
             <form onSubmit={handleAddUser} className="space-y-3">
               {/* Email */}
@@ -174,7 +179,7 @@ export default function UserManagementPage() {
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
-                    placeholder="อย่างน้อย 6 ตัวอักษร"
+                    placeholder="อย่างน้อย 6 ตัวอักษร / At least 6 characters"
                     value={form.password}
                     onChange={(e) => {
                       setForm({ ...form, password: e.target.value });
@@ -187,7 +192,7 @@ export default function UserManagementPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
                   >
-                    {showPassword ? "ซ่อน" : "แสดง"}
+                    {showPassword ? "ซ่อน / Hide" : "แสดง / Show"}
                   </button>
                 </div>
                 {errors.password && (
@@ -217,14 +222,14 @@ export default function UserManagementPage() {
                   disabled={saving}
                   className="flex-1 sm:flex-none bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
                 >
-                  {saving ? "กำลังบันทึก..." : "💾 บันทึก"}
+                  {saving ? "กำลังบันทึก... / Saving..." : "💾 บันทึก / Save"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowForm(false); setErrors({}); setShowPassword(false); }}
                   className="flex-1 sm:flex-none border border-gray-300 text-gray-600 px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
                 >
-                  ยกเลิก
+                  ยกเลิก / Cancel
                 </button>
               </div>
             </form>
@@ -235,12 +240,12 @@ export default function UserManagementPage() {
         {loading ? (
           <div className="text-center py-16 text-gray-400 text-sm">
             <div className="text-3xl mb-2">⏳</div>
-            กำลังโหลดข้อมูล...
+            กำลังโหลดข้อมูล... / Loading...
           </div>
         ) : users.length === 0 ? (
           <div className="text-center py-16 text-gray-400 text-sm">
             <div className="text-3xl mb-2">👤</div>
-            ไม่พบข้อมูลผู้ใช้
+            ไม่พบข้อมูลผู้ใช้ / No users found
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -292,7 +297,7 @@ export default function UserManagementPage() {
                             : "text-blue-500 border-blue-200 hover:bg-blue-50 active:bg-blue-100"
                         }`}
                       >
-                        เปลี่ยน Role
+                        เปลี่ยน Role / Change Role
                       </button>
                       <button
                         onClick={() => handleDelete(user.id, user.email)}
@@ -303,7 +308,7 @@ export default function UserManagementPage() {
                             : "text-red-500 border-red-200 hover:bg-red-50 active:bg-red-100"
                         }`}
                       >
-                        🗑️ ลบผู้ใช้
+                        🗑️ ลบผู้ใช้ / Delete User
                       </button>
                     </div>
 
@@ -315,7 +320,7 @@ export default function UserManagementPage() {
         )}
 
         <p className="text-xs text-gray-400 text-center pb-4">
-          ⚠️ ไม่สามารถลบหรือเปลี่ยน Role ของ Admin คนสุดท้ายได้
+          ⚠️ ไม่สามารถลบหรือเปลี่ยน Role ของ Admin คนสุดท้ายได้ / Cannot delete or change the role of the last remaining Admin
         </p>
       </div>
     </div>

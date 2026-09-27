@@ -75,6 +75,8 @@ export default function POSPage() {
         .single();
 
       if (dbError || !product) {
+        // Contains a variable (barcode) — kept single-language for a
+        // quick, readable message instead of duplicating the code twice.
         setError(`ไม่พบสินค้าบาร์โค้ด: ${barcode}`);
         setLoading(false);
         return;
@@ -86,6 +88,7 @@ export default function POSPage() {
       );
 
       if (totalStock <= 0) {
+        // Contains the product name — single-language, same reasoning.
         setError(`สินค้า "${product.name}" หมดสต็อก`);
         setLoading(false);
         return;
@@ -104,7 +107,7 @@ export default function POSPage() {
         const existing = prev.find((item) => item.barcode === barcode);
         if (existing) {
           if (existing.qty + 1 > totalStock) {
-            setError("สต็อกไม่พอ");
+            setError("สต็อกไม่พอ / Not enough stock");
             return prev;
           }
           return prev.map((item) =>
@@ -116,7 +119,7 @@ export default function POSPage() {
         return [...prev, cartProduct];
       });
     } catch (err) {
-      setError("การเชื่อมต่อฐานข้อมูลขัดข้อง");
+      setError("การเชื่อมต่อฐานข้อมูลขัดข้อง / Database connection error");
     } finally {
       setLoading(false);
       setBarcodeInput("");
@@ -142,7 +145,7 @@ export default function POSPage() {
       setScannerOpen(true);
     } catch (err) {
       setCameraError(
-        "ไม่พบกล้อง หรือไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาใช้การคีย์บาร์โค้ดด้วยตนเองแทน"
+        "ไม่พบกล้อง หรือไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาใช้การคีย์บาร์โค้ดด้วยตนเองแทน / Camera not found or permission denied — use manual entry instead"
       );
       setScannerOpen(false);
     }
@@ -163,7 +166,7 @@ export default function POSPage() {
       prev.map((item) => {
         if (item.id === id) {
           if (item.qty + 1 > item.stock_qty) {
-            alert("สินค้าในสต็อกไม่พอ");
+            alert("สินค้าในสต็อกไม่พอ / Not enough stock");
             return item;
           }
           return { ...item, qty: item.qty + 1 };
@@ -189,7 +192,7 @@ export default function POSPage() {
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      setError("กรุณาเพิ่มสินค้าก่อนชำระเงิน");
+      setError("กรุณาเพิ่มสินค้าก่อนชำระเงิน / Please add items before checkout");
       return;
     }
     localStorage.setItem("cart", JSON.stringify(cart));
@@ -202,7 +205,7 @@ export default function POSPage() {
       <div className="h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 font-medium">กำลังตรวจสอบสิทธิ์การใช้งาน...</p>
+          <p className="text-gray-500 font-medium">กำลังตรวจสอบสิทธิ์การใช้งาน... / Checking permissions...</p>
         </div>
       </div>
     );
@@ -222,7 +225,9 @@ export default function POSPage() {
               className="h-40 w-full bg-gray-200 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-gray-400 hover:bg-gray-300 transition-colors"
             >
               <span className="text-2xl mb-1">📷</span>
-              <span className="text-gray-600 text-sm font-medium">กดเพื่อเปิดกล้องสแกน</span>
+              <span className="text-gray-600 text-sm font-medium">
+                กดเพื่อเปิดกล้องสแกน / Tap to open scanner
+              </span>
             </button>
           ) : (
             <div className="relative h-40 rounded-lg overflow-hidden bg-black">
@@ -242,7 +247,7 @@ export default function POSPage() {
 
         <div className="px-4 py-3 bg-white border-b">
           <label className="text-xs font-medium text-gray-500 mb-1 block">
-            คีย์บาร์โค้ดด้วยตนเอง (กด Enter เพื่อเพิ่ม)
+            คีย์บาร์โค้ดด้วยตนเอง (กด Enter เพื่อเพิ่ม) / Enter barcode manually
           </label>
           <input
             type="text"
@@ -260,12 +265,12 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
           <h2 className="text-sm font-bold text-gray-600 mb-3">
-            รายการสินค้า ({cart.length})
+            รายการสินค้า ({cart.length}) / Items
           </h2>
 
           {cart.length === 0 ? (
             <div className="text-center text-gray-400 text-sm mt-10">
-              ยังไม่มีสินค้าในตะกร้า
+              ยังไม่มีสินค้าในตะกร้า / Your cart is empty
             </div>
           ) : (
             <div className="space-y-3">
@@ -288,6 +293,7 @@ export default function POSPage() {
                       <span className="text-base font-bold text-gray-800">{item.qty}</span>
                       <button onClick={() => increaseQty(item.id)} className="w-8 h-8 rounded-full border border-blue-400 text-blue-600 flex items-center justify-center">+</button>
                     </div>
+                    {/* Contains a variable (stock_qty) — single-language */}
                     <span className="text-[10px] text-gray-400">สต็อก: {item.stock_qty}</span>
                   </div>
                 </div>
@@ -298,7 +304,7 @@ export default function POSPage() {
 
         <div className="bg-white p-4 border-t shadow-inner">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-lg font-bold text-gray-700">ยอดรวมทั้งสิ้น</span>
+            <span className="text-lg font-bold text-gray-700">ยอดรวมทั้งสิ้น / Total</span>
             <span className="text-2xl font-bold text-red-500">฿{totalPrice.toFixed(2)}</span>
           </div>
           <button

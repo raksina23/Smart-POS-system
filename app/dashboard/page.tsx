@@ -96,9 +96,6 @@ export default function DashboardPage() {
     const in7Days = new Date();
     in7Days.setDate(today.getDate() + 7);
 
-    // Condition: expiration_date within 7 days, regardless of remaining
-    // quantity (per the new policy — discount the whole batch, not just
-    // the last unit, to protect margin on everything that's about to expire).
     const { data, error } = await supabase
       .from("stock_batches")
       .select(`
@@ -232,9 +229,6 @@ export default function DashboardPage() {
     setMonthlyData(last6);
   };
 
-  // FIXED: now writes to stock_batches.special_price for this ONE batch,
-  // instead of the old bug that overwrote products.price for every batch
-  // of that product (including unaffected, non-expiring batches).
   const handleApplyDiscount = async (batch: ExpiringProduct) => {
     setApplyingId(batch.id);
 
@@ -253,7 +247,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // Refresh from DB so special_price reflects what's actually saved
     fetchExpiringProducts();
   };
 
@@ -272,7 +265,7 @@ export default function DashboardPage() {
   const handleCreatePurchaseOrder = () => {
     const selected = lowStockProducts.filter((p) => selectedItems[p.id]);
     if (selected.length === 0) {
-      alert("กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ");
+      alert("กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ / Please select items to order");
       return;
     }
     localStorage.setItem("purchaseOrderItems", JSON.stringify(selected));
@@ -303,7 +296,7 @@ export default function DashboardPage() {
               </span>
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              อัปเดตล่าสุด: {timeStr} น.
+              อัปเดตล่าสุด / Last updated: {timeStr} น.
             </p>
           </div>
           <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm whitespace-nowrap">
@@ -313,7 +306,7 @@ export default function DashboardPage() {
 
         {loading ? (
           <div className="text-center py-20 text-gray-400 text-sm">
-            กำลังโหลดข้อมูล...
+            กำลังโหลดข้อมูล... / Loading...
           </div>
         ) : (
           <>
@@ -405,7 +398,7 @@ export default function DashboardPage() {
             {/* ─── Alert Panels ─── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
-              {/* สินค้าใกล้หมดอายุ — now the single source of truth for discounts */}
+              {/* สินค้าใกล้หมดอายุ */}
               <div className="bg-red-50 border-t-4 border-red-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-red-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
@@ -422,7 +415,7 @@ export default function DashboardPage() {
 
                 {expiringProducts.length === 0 ? (
                   <p className="text-sm text-red-400 text-center py-4">
-                    ไม่มีสินค้าใกล้หมดอายุ
+                    ไม่มีสินค้าใกล้หมดอายุ / No products expiring soon
                   </p>
                 ) : (
                   <div className="space-y-2.5">
@@ -446,18 +439,22 @@ export default function DashboardPage() {
                                 {item.name}
                               </p>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                ล็อตนี้ {item.stock_qty} ชิ้น · หมวดหมู่ {item.category} · อีก{" "}
-                                <span className="font-bold text-red-600">{item.daysLeft} วัน</span>
+                                ล็อตนี้ {item.stock_qty} ชิ้น / This batch: {item.stock_qty} pcs
+                                {" · "}หมวดหมู่ / Category: {item.category}
+                                {" · "}อีก{" "}
+                                <span className="font-bold text-red-600">
+                                  {item.daysLeft} วัน / {item.daysLeft}d left
+                                </span>
                               </p>
                             </div>
                             <div className="shrink-0 self-start sm:self-auto">
                               {alreadyApplied ? (
                                 <span className="bg-green-100 text-green-700 border border-green-200 text-xs font-bold px-3 py-1.5 rounded-lg inline-block">
-                                  ✓ ราคาพิเศษ ฿{item.special_price}
+                                  ✓ ราคาพิเศษ / Special Price ฿{item.special_price}
                                 </span>
                               ) : percent <= 0 ? (
                                 <span className="text-xs text-gray-400 italic">
-                                  หมวดหมู่นี้ยังไม่ตั้ง % ลดราคา
+                                  หมวดหมู่นี้ยังไม่ตั้ง % ลดราคา / No discount % set for this category
                                 </span>
                               ) : (
                                 <button
@@ -468,7 +465,9 @@ export default function DashboardPage() {
                                   <span className="line-through opacity-70">฿{item.price}</span>
                                   <span>฿{discountedPrice}</span>
                                   <span>
-                                    {applyingId === item.id ? "..." : `ยืนยันลด ${percent}%`}
+                                    {applyingId === item.id
+                                      ? "กำลังบันทึก... / Saving..."
+                                      : `ยืนยันลด ${percent}% / Confirm ${percent}% off`}
                                   </span>
                                 </button>
                               )}
@@ -498,7 +497,7 @@ export default function DashboardPage() {
 
                 {lowStockProducts.length === 0 ? (
                   <p className="text-sm text-orange-400 text-center py-4">
-                    สต็อกสินค้าปกติทุกรายการ
+                    สต็อกสินค้าปกติทุกรายการ / All stock levels are normal
                   </p>
                 ) : (
                   <>
@@ -511,7 +510,7 @@ export default function DashboardPage() {
                       </button>
                       {selectedCount > 0 && (
                         <span className="text-xs text-orange-500 font-medium">
-                          เลือกแล้ว {selectedCount} รายการ
+                          เลือกแล้ว {selectedCount} รายการ / {selectedCount} selected
                         </span>
                       )}
                     </div>
@@ -544,10 +543,13 @@ export default function DashboardPage() {
                                 {item.name}
                               </p>
                               <p className="text-xs font-bold text-orange-600">
-                                เหลือ {item.stock_qty} ชิ้น{" "}
+                                เหลือ {item.stock_qty} ชิ้น / {item.stock_qty} left{" "}
                                 <span className="font-normal text-gray-400">
-                                  (ขั้นต่ำ {item.min_stock} ·{" "}
-                                  {item.activeBatchCount === 0 ? "ไม่มีล็อตสำรอง" : "เหลือล็อตเดียว"})
+                                  (ขั้นต่ำ / Min {item.min_stock} ·{" "}
+                                  {item.activeBatchCount === 0
+                                    ? "ไม่มีล็อตสำรอง / No backup lot"
+                                    : "เหลือล็อตเดียว / One lot left"}
+                                  )
                                 </span>
                               </p>
                               <p className={`text-xs font-semibold mt-0.5 ${getRestockAction(item.activeBatchCount).color}`}>
@@ -568,7 +570,7 @@ export default function DashboardPage() {
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
-                      📋 สร้างใบสั่งซื้อ / Created purchase order ({selectedCount} รายการ / item)
+                      📋 สร้างใบสั่งซื้อ / Create purchase order ({selectedCount} รายการ / item)
                     </button>
                   </>
                 )}

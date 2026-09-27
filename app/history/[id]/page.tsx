@@ -54,7 +54,8 @@ export default function OrderDetailPage() {
 
       if (error || !data) {
         console.error("Error fetching order:", error?.message);
-        alert("ไม่พบข้อมูล order");
+        // No variable to duplicate here, so both languages fit cleanly
+        alert("ไม่พบข้อมูล order / Order not found");
         router.push("/history");
         return;
       }
@@ -67,8 +68,8 @@ export default function OrderDetailPage() {
   }, [id]);
 
   const paymentLabel: Record<string, string> = {
-    cash: "เงินสด",
-    transfer: "โอนเงิน / QR Code",
+    cash: "เงินสด / Cash",
+    transfer: "โอนเงิน / QR Code / Transfer",
   };
 
   if (loading) {
@@ -76,7 +77,7 @@ export default function OrderDetailPage() {
       <div className="min-h-screen bg-gray-50">
         <Navbar role="Admin" />
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-400">กำลังโหลดข้อมูล...</p>
+          <p className="text-gray-400">กำลังโหลดข้อมูล... / Loading...</p>
         </div>
       </div>
     );
@@ -113,7 +114,9 @@ export default function OrderDetailPage() {
           >
             ←
           </button>
-          <h1 className="text-2xl font-bold text-gray-800">รายละเอียดบิล</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            รายละเอียดบิล <span className="text-gray-400 font-normal text-lg">(Order Detail)</span>
+          </h1>
         </div>
 
         {/* Order Info */}
@@ -123,27 +126,27 @@ export default function OrderDetailPage() {
               #{order.id.slice(0, 8).toUpperCase()}
             </p>
             <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
-              ✓ ชำระแล้ว
+              ✓ ชำระแล้ว / Paid
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t border-gray-100">
             <div>
-              <p className="text-xs text-gray-400">วันที่</p>
+              <p className="text-xs text-gray-400">วันที่ / Date</p>
               <p className="font-medium text-gray-700">{dateStr}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400">เวลา</p>
+              <p className="text-xs text-gray-400">เวลา / Time</p>
               <p className="font-medium text-gray-700">{timeStr}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400">วิธีชำระ</p>
+              <p className="text-xs text-gray-400">วิธีชำระ / Payment Method</p>
               <p className="font-medium text-gray-700">
                 {paymentLabel[order.payment_type] ?? order.payment_type}
               </p>
             </div>
             {order.payment_type === "cash" && (
               <div>
-                <p className="text-xs text-gray-400">เงินทอน</p>
+                <p className="text-xs text-gray-400">เงินทอน / Change</p>
                 <p className="font-medium text-gray-700">
                   ฿{order.change.toFixed(2)}
                 </p>
@@ -155,7 +158,7 @@ export default function OrderDetailPage() {
         {/* รายการสินค้า */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4">
           <h2 className="text-sm font-bold text-gray-600 mb-3">
-            รายการสินค้า ({order.order_items.length} รายการ)
+            รายการสินค้า / Items ({order.order_items.length} รายการ)
           </h2>
           <div className="space-y-3">
             {order.order_items.map((item) => (
@@ -180,13 +183,13 @@ export default function OrderDetailPage() {
         {/* ยอดรวม + กำไร */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6 space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-base font-medium text-gray-600">ยอดขายรวม</span>
+            <span className="text-base font-medium text-gray-600">ยอดขายรวม / Total Sales</span>
             <span className="text-xl font-bold text-blue-600">
               ฿{order.total_amount.toFixed(2)}
             </span>
           </div>
           <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-            <span className="text-base font-medium text-gray-600">กำไรบิลนี้</span>
+            <span className="text-base font-medium text-gray-600">กำไรบิลนี้ / Profit</span>
             <span className="text-xl font-bold text-emerald-500">
               ฿{totalProfit.toFixed(2)}
             </span>
@@ -196,13 +199,13 @@ export default function OrderDetailPage() {
         {/* ปุ่ม */}
         <div className="space-y-3">
           {/* <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
-            🖨️ พิมพ์ใบเสร็จ
+            🖨️ พิมพ์ใบเสร็จ / Print Receipt
           </button> */}
           <button
             onClick={() => router.push("/history")}
             className="w-full border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
           >
-            ← กลับ
+            ← กลับ / Back
           </button>
         </div>
 
