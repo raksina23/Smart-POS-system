@@ -200,6 +200,11 @@ export default function AddProductPage() {
 
   const selectedCategory = categories.find((c) => c.name === form.category);
 
+  // Shared input style: full-width, 16px text on mobile (prevents iOS
+  // auto-zoom), taller touch target on mobile, compact on larger screens.
+  const inputClass =
+    "w-full min-w-0 px-4 py-3 sm:py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base sm:text-sm";
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar role="Admin" />
@@ -272,7 +277,7 @@ export default function AddProductPage() {
                 value={form.name}
                 onChange={handleChange}
                 placeholder="เช่น / e.g. น้ำเปล่าตราสิงห์ 600ml"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                className={inputClass}
               />
               {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
             </div>
@@ -283,11 +288,12 @@ export default function AddProductPage() {
               </label>
               <input
                 type="text"
+                inputMode="numeric"
                 name="barcode"
                 value={form.barcode}
                 onChange={handleChange}
                 placeholder="เช่น / e.g. 8850999000033"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                className={inputClass}
               />
               {errors.barcode && <p className="text-red-500 text-xs mt-1">{errors.barcode}</p>}
             </div>
@@ -301,7 +307,7 @@ export default function AddProductPage() {
                 value={form.category}
                 onChange={handleChange}
                 disabled={loadingCategories}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+                className={`${inputClass} bg-white`}
               >
                 <option value="">
                   {loadingCategories ? "กำลังโหลด... / Loading..." : "เลือกหมวดหมู่ / Select category"}
@@ -327,41 +333,46 @@ export default function AddProductPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">ราคา / Pricing</h2>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            {/* 1 คอลัมน์บนมือถือ, 2 คอลัมน์ตั้งแต่ sm ขึ้นไป */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   ราคาขาย / Selling Price (฿) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   name="price"
                   value={form.price}
                   onChange={handleChange}
                   placeholder="0.00"
                   min="0"
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  step="any"
+                  className={inputClass}
                 />
                 {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   ราคาทุน / Cost Price (฿) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   name="cost"
                   value={form.cost}
                   onChange={handleChange}
                   placeholder="0.00"
                   min="0"
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  step="any"
+                  className={inputClass}
                 />
                 {errors.cost && <p className="text-red-500 text-xs mt-1">{errors.cost}</p>}
               </div>
             </div>
 
-            {form.price && form.cost && (
+            {Number(form.price) > 0 && form.cost && (
               <div className="bg-green-50 rounded-lg px-4 py-2 text-sm">
                 <span className="text-green-700 font-medium">
                   กำไรโดยประมาณ / Est. Profit: ฿{(Number(form.price) - Number(form.cost)).toFixed(2)}
@@ -383,35 +394,37 @@ export default function AddProductPage() {
               Future shipments are added via the "Restock" button on the inventory page, not here.
             </p>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   จำนวนเริ่มต้น / Initial Stock <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   name="stock"
                   value={form.stock}
                   onChange={handleChange}
                   placeholder="0"
                   min="0"
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className={inputClass}
                 />
                 {errors.stock && <p className="text-red-500 text-xs mt-1">{errors.stock}</p>}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   จำนวนขั้นต่ำ / Minimum Stock <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   name="minStock"
                   value={form.minStock}
                   onChange={handleChange}
                   placeholder="0"
                   min="0"
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className={inputClass}
                 />
                 {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
               </div>
@@ -440,7 +453,7 @@ export default function AddProductPage() {
               name="expDate"
               value={form.expDate}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className={inputClass}
             />
             {errors.expDate && <p className="text-red-500 text-xs mt-1">{errors.expDate}</p>}
           </div>
