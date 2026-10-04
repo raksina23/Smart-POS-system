@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toPng } from "html-to-image";
 
 interface PurchaseItem {
   id: string;
@@ -9,11 +10,21 @@ interface PurchaseItem {
   min_stock: number;
 }
 
+// วันที่ตามเวลาท้องถิ่น (ไม่ใช่ UTC) สำหรับใช้ในชื่อไฟล์
+const toLocalDateString = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 export default function PurchaseOrderPage() {
   const router = useRouter();
   const billRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [saving, setSaving] = useState(false);
+  // ใช้แสดงรูปให้กดค้างบันทึกเอง (เบราว์เซอร์ใน LINE / Facebook)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("purchaseOrderItems");
@@ -22,37 +33,68 @@ export default function PurchaseOrderPage() {
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("th-TH", {
-    year: "numeric", month: "long", day: "numeric",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
-  const timeStr = now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = now.toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   const handleSaveImage = async () => {
     if (!billRef.current) return;
     setSaving(true);
 
     try {
-      // โหลด html2canvas จาก CDN
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      document.head.appendChild(script);
+      // ถ่ายรูป 2 รอบ: รอบแรกอุ่นเครื่อง (Safari มักให้รูปว่างในรอบแรก)
+      await toPng(billRef.current, { cacheBust: true });
+      const dataUrl = await toPng(billRef.current, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+      });
 
-      script.onload = async () => {
-        const html2canvas = (window as any).html2canvas;
-        const canvas = await html2canvas(billRef.current, {
-          scale: 2,
-          backgroundColor: "#ffffff",
-          useCORS: true,
-        });
+      const fileName = `purchase-order-${toLocalDateString(now)}.png`;
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], fileName, { type: "image/png" });
 
-        // บันทึกเป็นรูป
+      // วิธี 1: เมนูแชร์ (มือถือส่วนใหญ่) → เลือก "บันทึกรูปภาพ" ได้
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "ใบสั่งซื้อ / Purchase Order",
+          });
+          return;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") return; // ผู้ใช้กดยกเลิก
+          // แชร์ไม่สำเร็จ → ไปวิธีถัดไป
+        }
+      }
+
+      // วิธี 2: ดาวน์โหลดตรงๆ (เดสก์ท็อป / Android)
+      const isInAppBrowser = /Line|FBAN|FBAV|Instagram/i.test(
+        navigator.userAgent
+      );
+      if (!isInAppBrowser) {
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.download = `purchase-order-${now.toISOString().split("T")[0]}.png`;
-        link.href = canvas.toDataURL("image/png");
+        link.download = fileName;
+        link.href = url;
+        document.body.appendChild(link);
         link.click();
-        setSaving(false);
-      };
-    } catch {
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return;
+      }
+
+      // วิธี 3: แสดงรูปให้กดค้างแล้วบันทึกเอง (LINE / Facebook in-app)
+      setPreviewUrl(dataUrl);
+    } catch (err) {
+      console.error(err);
       alert("เกิดข้อผิดพลาดในการบันทึกรูป / Error saving image");
+    } finally {
       setSaving(false);
     }
   };
@@ -79,8 +121,10 @@ export default function PurchaseOrderPage() {
         </div>
 
         {/* ใบสั่งซื้อ — ส่วนนี้จะถูก capture เป็นรูป */}
-        <div ref={billRef} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-
+        <div
+          ref={billRef}
+          className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+        >
           {/* Header */}
           <div className="text-center border-b border-dashed border-gray-300 pb-4 mb-4">
             <h1 className="text-2xl font-bold text-orange-600">Smart POS</h1>
@@ -111,11 +155,21 @@ export default function PurchaseOrderPage() {
                   key={item.id}
                   className="grid grid-cols-12 items-center bg-orange-50 rounded-lg px-3 py-2.5 text-sm border border-orange-100"
                 >
-                  <span className="col-span-1 text-gray-400 text-xs">{index + 1}</span>
-                  <span className="col-span-5 font-medium text-gray-800">{item.name}</span>
-                  <span className="col-span-2 text-center text-red-500 font-bold">{item.stock_qty}</span>
-                  <span className="col-span-2 text-center text-gray-500">{item.min_stock}</span>
-                  <span className="col-span-2 text-center text-orange-600 font-bold">{needToBuy}</span>
+                  <span className="col-span-1 text-gray-400 text-xs">
+                    {index + 1}
+                  </span>
+                  <span className="col-span-5 font-medium text-gray-800">
+                    {item.name}
+                  </span>
+                  <span className="col-span-2 text-center text-red-500 font-bold">
+                    {item.stock_qty}
+                  </span>
+                  <span className="col-span-2 text-center text-gray-500">
+                    {item.min_stock}
+                  </span>
+                  <span className="col-span-2 text-center text-orange-600 font-bold">
+                    {needToBuy}
+                  </span>
                 </div>
               );
             })}
@@ -125,12 +179,21 @@ export default function PurchaseOrderPage() {
           <div className="border-t border-dashed border-gray-300 mt-4 pt-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">จำนวนรายการ / Total Items</span>
-              <span className="font-bold text-gray-800">{items.length} รายการ</span>
+              <span className="font-bold text-gray-800">
+                {items.length} รายการ
+              </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">จำนวนชิ้นที่ต้องสั่ง / Total Units Needed</span>
+              <span className="text-gray-500">
+                จำนวนชิ้นที่ต้องสั่ง / Total Units Needed
+              </span>
               <span className="font-bold text-orange-600">
-                {items.reduce((sum, item) => sum + Math.max(item.min_stock - item.stock_qty, 0), 0)} ชิ้น
+                {items.reduce(
+                  (sum, item) =>
+                    sum + Math.max(item.min_stock - item.stock_qty, 0),
+                  0
+                )}{" "}
+                ชิ้น
               </span>
             </div>
           </div>
@@ -162,8 +225,30 @@ export default function PurchaseOrderPage() {
             {saving ? "กำลังบันทึก..." : "📥 บันทึกเป็นรูป / Save Image"}
           </button>
         </div>
-
       </div>
+
+      {/* Modal แสดงรูปให้กดค้างบันทึก (LINE / Facebook in-app browser) */}
+      {previewUrl && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-3 max-w-sm w-full max-h-[90vh] overflow-y-auto">
+            <p className="text-sm text-center font-medium text-gray-700 mb-2">
+              กดรูปค้างไว้ แล้วเลือก "บันทึกรูปภาพ" /
+              Press and hold the image, then choose "Save Image"
+            </p>
+            <img
+              src={previewUrl}
+              alt="Purchase Order"
+              className="w-full rounded-lg border"
+            />
+            <button
+              onClick={() => setPreviewUrl(null)}
+              className="mt-3 w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-medium"
+            >
+              ปิด / Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
