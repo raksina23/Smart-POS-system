@@ -96,20 +96,21 @@ export default function DashboardPage() {
     const in7Days = new Date();
     in7Days.setDate(today.getDate() + 7);
 
-    const { data, error } = await supabase
-      .from("stock_batches")
-      .select(`
-        id,
-        product_id,
-        quantity,
-        expiration_date,
-        special_price,
-        products ( name, price, cost, category )
-      `)
-      .gt("quantity", 0)
-      .lte("expiration_date", in7Days.toISOString().split("T")[0])
-      .gte("expiration_date", today.toISOString().split("T")[0])
-      .order("expiration_date");
+      const { data, error } = await supabase
+    .from("stock_batches")
+    .select(`
+      id,
+      product_id,
+      quantity,
+      expiration_date,
+      special_price,
+      products!inner ( name, price, cost, category, is_active )
+    `)
+    .eq("products.is_active", true)   
+    .gt("quantity", 0)
+    .lte("expiration_date", in7Days.toISOString().split("T")[0])
+    .gte("expiration_date", today.toISOString().split("T")[0])
+    .order("expiration_date");
 
     if (!error && data) {
       const mapped = data.map((b: any) => {
@@ -135,7 +136,8 @@ export default function DashboardPage() {
   const fetchLowStockProducts = async () => {
     const { data: allProducts } = await supabase
       .from("products")
-      .select(`id, name, min_stock, stock_batches ( quantity )`);
+      .select(`id, name, min_stock, stock_batches ( quantity )`)
+      .eq("is_active", true);
 
     if (allProducts) {
       const withTotals = (allProducts as any[]).map((p) => {

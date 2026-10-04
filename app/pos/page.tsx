@@ -72,6 +72,7 @@ export default function POSPage() {
         .from("products")
         .select(`*, stock_batches ( quantity )`)
         .eq("barcode", barcode.trim())
+        .eq("is_active", true)
         .single();
 
       if (dbError || !product) {

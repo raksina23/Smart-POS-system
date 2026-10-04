@@ -99,14 +99,15 @@ export default function InventoryPage() {
   const [applyingBatchId, setApplyingBatchId] = useState<string | null>(null);
 
   const fetchProducts = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("products")
-      .select(
-        `id, name, barcode, price, cost, category, min_stock, photo_url,
-         stock_batches ( id, quantity, expiration_date, special_price )`
-      )
-      .order("name");
+  setLoading(true);
+  const { data, error } = await supabase
+    .from("products")
+    .select(
+      `id, name, barcode, price, cost, category, min_stock, photo_url,
+       stock_batches ( id, quantity, expiration_date, special_price )`
+    )
+    .eq("is_active", true)
+    .order("name");
 
     if (error) {
       console.error("Error fetching products:", error.message);
@@ -129,17 +130,25 @@ export default function InventoryPage() {
   }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`ต้องการลบ "${name}" หรือไม่? / Delete this product?`)) return;
+  if (
+    !confirm(
+      `ต้องการลบ "${name}" หรือไม่? ประวัติการขายจะยังอยู่ / Delete this product? Sales history is kept.`
+    )
+  )
+    return;
 
-    const { error } = await supabase.from("products").delete().eq("id", id);
+  const { error } = await supabase
+    .from("products")
+    .update({ is_active: false })
+    .eq("id", id);
 
-    if (error) {
-      alert("เกิดข้อผิดพลาด / Error: " + error.message);
-      return;
-    }
+  if (error) {
+    alert("เกิดข้อผิดพลาด / Error: " + error.message);
+    return;
+  }
 
-    fetchProducts();
-  };
+  fetchProducts();
+};
 
   const openRestock = (product: Product) => {
     setRestockTarget(product);
