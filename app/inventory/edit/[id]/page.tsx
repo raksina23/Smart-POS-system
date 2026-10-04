@@ -251,7 +251,7 @@ export default function EditProductPage() {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
+                  // capture="environment"
                   onChange={handlePhotoChange}
                   className="hidden"
                 />
