@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchAlertCounts, AlertCounts } from "../lib/alerts";
 
 export default function Navbar({ role }: { role: string }) {
@@ -11,7 +11,7 @@ export default function Navbar({ role }: { role: string }) {
   const adminLinks = [
     { label: "Dashboard", path: "/dashboard", icon: "📊" },
     { label: "Inventory", path: "/inventory", icon: "📦" },
-    { label: "POS", path: "/pos", icon: "🛒" }, 
+    { label: "POS", path: "/pos", icon: "🛒" },
     { label: "Sales History", path: "/history", icon: "📋" },
     { label: "Users", path: "/users", icon: "👥" },
   ];
@@ -32,24 +32,31 @@ export default function Navbar({ role }: { role: string }) {
   const [bellOpen, setBellOpen] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
 
+  // allowPopup = false → refresh the numbers only, never open the pop-up
+  const loadAlerts = useCallback(async (allowPopup = true) => {
+    const counts = await fetchAlertCounts();
+    setAlertCounts(counts);
+
+    const total = counts.expiringCount + counts.lowStockCount;
+    const alreadyShown = sessionStorage.getItem("alertsPopupShown");
+
+    if (allowPopup && total > 0 && !alreadyShown) {
+      setShowPopup(true);
+      sessionStorage.setItem("alertsPopupShown", "true");
+    }
+  }, []);
+
   useEffect(() => {
     if (!isIdAdmin) return;
 
-    const loadAlerts = async () => {
-      const counts = await fetchAlertCounts();
-      setAlertCounts(counts);
-
-      const total = counts.expiringCount + counts.lowStockCount;
-      const alreadyShown = sessionStorage.getItem("alertsPopupShown");
-
-      if (total > 0 && !alreadyShown) {
-        setShowPopup(true);
-        sessionStorage.setItem("alertsPopupShown", "true");
-      }
-    };
-
     loadAlerts();
-  }, [isIdAdmin]);
+
+    // Other pages can trigger a refresh after deleting / restocking with:
+    //   window.dispatchEvent(new Event("alerts:refresh"));
+    const onRefresh = () => loadAlerts(false);
+    window.addEventListener("alerts:refresh", onRefresh);
+    return () => window.removeEventListener("alerts:refresh", onRefresh);
+  }, [isIdAdmin, loadAlerts]);
 
   const totalAlerts = alertCounts.expiringCount + alertCounts.lowStockCount;
 
@@ -104,7 +111,7 @@ export default function Navbar({ role }: { role: string }) {
                 >
                   🔔
                   {totalAlerts > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center px-1">
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center px-1">
                       {totalAlerts}
                     </span>
                   )}
@@ -167,7 +174,7 @@ export default function Navbar({ role }: { role: string }) {
             >
               🔔
               {totalAlerts > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center px-1">
                   {totalAlerts}
                 </span>
               )}
@@ -178,6 +185,7 @@ export default function Navbar({ role }: { role: string }) {
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden flex flex-col justify-center items-center w-9 h-9 rounded-lg hover:bg-gray-100 transition gap-1.5"
+            aria-label="เมนู"
           >
             <span className={`block w-5 h-0.5 bg-gray-600 transition-all duration-300 ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
             <span className={`block w-5 h-0.5 bg-gray-600 transition-all duration-300 ${menuOpen ? "opacity-0" : ""}`} />
@@ -209,7 +217,7 @@ export default function Navbar({ role }: { role: string }) {
         {/* Role Badge */}
         <div className="px-4 py-3 border-b border-gray-100">
           <span className={`text-xs font-medium px-3 py-1 rounded-full ${
-            role === "admin"
+            isIdAdmin
               ? "bg-blue-100 text-blue-700"
               : "bg-green-100 text-green-700"
           }`}>

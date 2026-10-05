@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
+import { bkkDate, daysLeftFrom } from "../lib/dates";
 
 interface ExpiringProduct {
   id: string; // stock_batches.id
@@ -115,7 +116,7 @@ export default function DashboardPage() {
     if (!error && data) {
       const mapped = data.map((b: any) => {
         const exp = new Date(b.expiration_date);
-        const daysLeft = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const daysLeft = daysLeftFrom(b.expiration_date);
         return {
           id: b.id,
           product_id: b.product_id,

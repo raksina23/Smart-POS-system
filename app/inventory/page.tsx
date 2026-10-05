@@ -148,6 +148,7 @@ export default function InventoryPage() {
   }
 
   fetchProducts();
+  window.dispatchEvent(new Event("alerts:refresh"));
 };
 
   const openRestock = (product: Product) => {

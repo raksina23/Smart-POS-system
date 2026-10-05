@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { bkkDate } from "./dates";
 
 export interface AlertCounts {
   expiringCount: number;
@@ -18,10 +19,10 @@ export async function fetchAlertCounts(): Promise<AlertCounts> {
   // --- Expiring soon: batches with stock left, expiring within 7 days ---
   const { data: expiringBatches, error: expiringError } = await supabase
     .from("stock_batches")
-    .select("id")
+    .select("id, products!inner ( is_active )", { count: "exact", head: true })
+    .eq("products.is_active", true)
     .gt("quantity", 0)
-    .lte("expiration_date", in7DaysStr)
-    .gte("expiration_date", todayStr);
+    .lte("expiration_date", bkkDate(7))
 
   // --- Low stock: total <= min_stock AND no backup batch left ---
   const { data: allProducts, error: productsError } = await supabase
