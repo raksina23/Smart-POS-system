@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 import { bkkDate, daysLeftFrom } from "../lib/dates";
+import AiInsights from "../components/AiInsights";
 
 interface ExpiringProduct {
   id: string; // stock_batches.id
@@ -400,7 +401,7 @@ export default function DashboardPage() {
 
             {/* ─── Alert Panels ─── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-
+               
               {/* สินค้าใกล้หมดอายุ */}
               <div className="bg-red-50 border-t-4 border-red-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
@@ -430,6 +431,7 @@ export default function DashboardPage() {
                         percent
                       );
                       const alreadyApplied = item.special_price != null;
+                      
 
                       return (
                         <div
@@ -578,7 +580,9 @@ export default function DashboardPage() {
                   </>
                 )}
               </div>
+              
             </div>
+            <AiInsights /> 
           </>
         )}
       </div>
