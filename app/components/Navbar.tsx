@@ -2,23 +2,33 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { fetchAlertCounts, AlertCounts } from "../lib/alerts";
+import { useI18n } from "../lib/i18n";
+import { TKey } from "../lib/dictionaries";
+import LanguageSwitcher from "./LanguageSwitcher";
+
+type NavLink = { labelKey: TKey; path: string; icon: string };
+
+const adminLinks: NavLink[] = [
+  { labelKey: "nav.dashboard", path: "/dashboard", icon: "📊" },
+  { labelKey: "nav.inventory", path: "/inventory", icon: "📦" },
+  { labelKey: "nav.categories", path: "/categories", icon: "🏷️" },
+  { labelKey: "nav.pos", path: "/pos", icon: "🛒" },
+  { labelKey: "nav.history", path: "/history", icon: "📋" },
+  { labelKey: "nav.users", path: "/users", icon: "👥" },
+  { labelKey: "nav.manual", path: "/manual", icon: "📖" },
+];
+
+const cashierLinks: NavLink[] = [
+  { labelKey: "nav.pos", path: "/pos", icon: "🛒" },
+  { labelKey: "nav.manual", path: "/manual", icon: "📖" },
+];
 
 export default function Navbar({ role }: { role: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const adminLinks = [
-    { label: "Dashboard", path: "/dashboard", icon: "📊" },
-    { label: "Inventory", path: "/inventory", icon: "📦" },
-    { label: "POS", path: "/pos", icon: "🛒" },
-    { label: "Sales History", path: "/history", icon: "📋" },
-    { label: "Users", path: "/users", icon: "👥" },
-  ];
-
-  const cashierLinks = [
-    { label: "POS", path: "/pos", icon: "🛒" },
-  ];
   const isIdAdmin = role?.toLowerCase() === "admin";
   const links = isIdAdmin ? adminLinks : cashierLinks;
 
@@ -97,7 +107,7 @@ export default function Navbar({ role }: { role: string }) {
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                {link.label}
+                {t(link.labelKey)}
               </button>
             ))}
 
@@ -107,7 +117,7 @@ export default function Navbar({ role }: { role: string }) {
                 <button
                   onClick={() => setBellOpen(!bellOpen)}
                   className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-lg"
-                  aria-label="การแจ้งเตือน"
+                  aria-label={t("nav.alerts")}
                 >
                   🔔
                   {totalAlerts > 0 && (
@@ -120,17 +130,17 @@ export default function Navbar({ role }: { role: string }) {
                 {bellOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                     <div className="p-3 border-b border-gray-100">
-                      <p className="text-sm font-bold text-gray-700">การแจ้งเตือน / Alerts</p>
+                      <p className="text-sm font-bold text-gray-700">{t("nav.alerts")}</p>
                     </div>
                     {totalAlerts === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-4">
-                        ไม่มีรายการแจ้งเตือน
+                        {t("alerts.none")}
                       </p>
                     ) : (
                       <div className="p-2 space-y-1">
                         {alertCounts.expiringCount > 0 && (
                           <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-red-50">
-                            <span className="text-sm text-red-700">🕐 ใกล้หมดอายุ</span>
+                            <span className="text-sm text-red-700">🕐 {t("alerts.expiring")}</span>
                             <span className="text-sm font-bold text-red-600">
                               {alertCounts.expiringCount}
                             </span>
@@ -138,7 +148,7 @@ export default function Navbar({ role }: { role: string }) {
                         )}
                         {alertCounts.lowStockCount > 0 && (
                           <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-orange-50">
-                            <span className="text-sm text-orange-700">📦 สต็อกต่ำ</span>
+                            <span className="text-sm text-orange-700">📦 {t("alerts.lowStock")}</span>
                             <span className="text-sm font-bold text-orange-600">
                               {alertCounts.lowStockCount}
                             </span>
@@ -150,18 +160,20 @@ export default function Navbar({ role }: { role: string }) {
                       onClick={goToDashboard}
                       className="w-full py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50 transition border-t border-gray-100"
                     >
-                      ดูรายละเอียด / View Dashboard
+                      {t("alerts.viewDashboard")}
                     </button>
                   </div>
                 )}
               </div>
             )}
 
+            <LanguageSwitcher />
+
             <button
               onClick={handleLogout}
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition"
             >
-              Logout
+              {t("nav.logout")}
             </button>
           </div>
 
@@ -170,7 +182,7 @@ export default function Navbar({ role }: { role: string }) {
             <button
               onClick={() => handleNavigate("/dashboard")}
               className="md:hidden relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-lg"
-              aria-label="การแจ้งเตือน"
+              aria-label={t("nav.alerts")}
             >
               🔔
               {totalAlerts > 0 && (
@@ -185,7 +197,7 @@ export default function Navbar({ role }: { role: string }) {
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden flex flex-col justify-center items-center w-9 h-9 rounded-lg hover:bg-gray-100 transition gap-1.5"
-            aria-label="เมนู"
+            aria-label={t("nav.menu")}
           >
             <span className={`block w-5 h-0.5 bg-gray-600 transition-all duration-300 ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
             <span className={`block w-5 h-0.5 bg-gray-600 transition-all duration-300 ${menuOpen ? "opacity-0" : ""}`} />
@@ -214,15 +226,16 @@ export default function Navbar({ role }: { role: string }) {
           </button>
         </div>
 
-        {/* Role Badge */}
-        <div className="px-4 py-3 border-b border-gray-100">
+        {/* Role Badge + Language */}
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
           <span className={`text-xs font-medium px-3 py-1 rounded-full ${
             isIdAdmin
               ? "bg-blue-100 text-blue-700"
               : "bg-green-100 text-green-700"
           }`}>
-            {isIdAdmin ? "👑 Admin" : "💳 Cashier"}
+            {isIdAdmin ? t("nav.roleAdmin") : t("nav.roleCashier")}
           </span>
+          <LanguageSwitcher />
         </div>
 
         {/* Menu Links */}
@@ -238,7 +251,7 @@ export default function Navbar({ role }: { role: string }) {
               }`}
             >
               <span>{link.icon}</span>
-              <span>{link.label}</span>
+              <span>{t(link.labelKey)}</span>
             </button>
           ))}
         </div>
@@ -250,7 +263,7 @@ export default function Navbar({ role }: { role: string }) {
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition"
           >
             <span>🚪</span>
-            <span>Logout</span>
+            <span>{t("nav.logout")}</span>
           </button>
         </div>
       </div>
@@ -260,12 +273,9 @@ export default function Navbar({ role }: { role: string }) {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-5 space-y-4">
             <div className="flex items-start justify-between">
-              <div>
-                <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                  🔔 มีรายการที่ต้องดู
-                </h2>
-                <p className="text-xs text-gray-400">Attention needed</p>
-              </div>
+              <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                🔔 {t("alerts.popupTitle")}
+              </h2>
               <button
                 onClick={() => setShowPopup(false)}
                 className="text-gray-300 hover:text-gray-500 text-xl leading-none"
@@ -278,20 +288,20 @@ export default function Navbar({ role }: { role: string }) {
               {alertCounts.expiringCount > 0 && (
                 <div className="flex items-center justify-between bg-red-50 border border-red-100 rounded-xl px-4 py-3">
                   <span className="text-sm font-medium text-red-700">
-                    🕐 สินค้าใกล้หมดอายุ
+                    🕐 {t("alerts.popupExpiring")}
                   </span>
                   <span className="text-lg font-bold text-red-600">
-                    {alertCounts.expiringCount} รายการ
+                    {t("alerts.itemCount", { n: alertCounts.expiringCount })}
                   </span>
                 </div>
               )}
               {alertCounts.lowStockCount > 0 && (
                 <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
                   <span className="text-sm font-medium text-orange-700">
-                    📦 สต็อกต่ำ
+                    📦 {t("alerts.popupLowStock")}
                   </span>
                   <span className="text-lg font-bold text-orange-600">
-                    {alertCounts.lowStockCount} รายการ
+                    {t("alerts.itemCount", { n: alertCounts.lowStockCount })}
                   </span>
                 </div>
               )}
@@ -302,13 +312,13 @@ export default function Navbar({ role }: { role: string }) {
                 onClick={() => setShowPopup(false)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
               >
-                ปิด / Dismiss
+                {t("common.dismiss")}
               </button>
               <button
                 onClick={goToDashboard}
                 className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700"
               >
-                ดูรายละเอียด / View
+                {t("alerts.viewDetails")}
               </button>
             </div>
           </div>

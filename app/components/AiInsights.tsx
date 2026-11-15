@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,13 +11,18 @@ type PurchaseItem = {
   units_sold: number;
   current_stock: number;
   suggested_qty: number;
+  days_left?: number | null;
 };
 
 type ShelfItem = {
   product_a: string;
   product_b: string;
   pair_orders: number;
-  lift: number;
+  total_bills?: number;
+  together_pct?: number;
+  a_to_b_pct?: number;
+  b_to_a_pct?: number;
+  strength?: "strong" | "medium";
 };
 
 type Rec = {
@@ -26,6 +30,23 @@ type Rec = {
   source_data: any[];
   created_at: string;
 } | null;
+
+function PctBar({ label, pct }: { label: string; pct: number }) {
+  return (
+    <div>
+      <div className="flex justify-between gap-2 text-[11px] text-gray-500">
+        <span className="min-w-0 break-words">{label}</span>
+        <span className="shrink-0 font-semibold text-gray-700">{pct}%</span>
+      </div>
+      <div className="h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
+        <div
+          className="h-full bg-purple-500 rounded-full"
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function AiInsights() {
   const [recs, setRecs] = useState<{
@@ -170,6 +191,7 @@ export default function AiInsights() {
                   {(() => {
                     const items = (rec.source_data as PurchaseItem[])
                       .filter((r) => r.suggested_qty > 0)
+                      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999)) // เรียงเร่งด่วนก่อน ตรงกับข้อความ AI
                       .slice(0, 5);
 
                     return items.length > 0 ? (
@@ -178,7 +200,7 @@ export default function AiInsights() {
                           <thead className="bg-gray-50 text-gray-500">
                             <tr>
                               <th className="px-3 py-3 font-semibold">Product</th>
-                              <th className="px-3 py-3 font-semibold text-center">Sold</th>
+                              <th className="px-3 py-3 font-semibold text-center">Days left</th>
                               <th className="px-3 py-3 font-semibold text-center">Stock</th>
                               <th className="px-3 py-3 font-semibold text-center">Suggest</th>
                             </tr>
@@ -195,7 +217,7 @@ export default function AiInsights() {
                                 </td>
 
                                 <td className="px-3 py-3 text-center text-gray-600">
-                                  {r.units_sold}
+                                  {r.days_left != null ? `${r.days_left} วัน` : "-"}
                                 </td>
 
                                 <td className="px-3 py-3 text-center text-gray-600">
@@ -221,57 +243,87 @@ export default function AiInsights() {
 
               {/* Shelf Arrangement */}
               {kind === "shelf" && (
-                <div className="space-y-3 min-w-0">
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-800">
-                      Product Relationships
-                    </h4>
+  <div className="space-y-3 min-w-0">
+    <div>
+      <h4 className="text-sm font-bold text-gray-800">Recommended Pairs</h4>
+      <p className="text-xs text-gray-400 mt-1">
+        คู่สินค้าที่ควรวางใกล้กัน เรียงจากซื้อพร้อมกันบ่อยที่สุด
+      </p>
+    </div>
 
-                    <p className="text-xs text-gray-400 mt-1">
-                      คู่สินค้าที่มักถูกซื้อในบิลเดียวกัน
+    {(() => {
+      const pairs = rec.source_data as ShelfItem[];
+
+      // ผลที่บันทึกไว้ก่อนอัปเดตจะไม่มีตัวเลขชุดใหม่
+      if (pairs.length === 0 || pairs[0].total_bills === undefined) {
+        return (
+          <p className="text-xs text-gray-400 text-center py-5 bg-gray-50 rounded-xl">
+            กดปุ่ม Analyze อีกครั้งเพื่ออัปเดตผลวิเคราะห์
+          </p>
+        );
+      }
+
+      return (
+        <>
+          <p className="text-xs text-gray-500">
+            วิเคราะห์จาก {pairs[0].total_bills} บิล (30 วันล่าสุด) · พบ {pairs.length} คู่ที่ควรวางใกล้กัน
+          </p>
+
+          <div className="space-y-2">
+            {pairs.map((r, i) => (
+              <div
+                key={i}
+                className="p-3 sm:p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="shrink-0 w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">
+                      {i + 1}
+                    </span>
+                    <p className="text-sm font-medium text-gray-700 leading-relaxed break-words min-w-0">
+                      {r.product_a}
+                      <span className="text-purple-500 mx-1">+</span>
+                      {r.product_b}
                     </p>
                   </div>
 
-                  {rec.source_data.length > 0 ? (
-                    <div className="space-y-2">
-                      {(rec.source_data as ShelfItem[])
-                        .slice(0, 5)
-                        .map((r, i) => (
-                          <div
-                            key={i}
-                            className="flex flex-col gap-2 p-3 sm:p-4 bg-gray-50 rounded-xl border border-gray-100"
-                          >
-                            <div className="flex items-start gap-2">
-                              <span className="shrink-0 w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">
-                                {i + 1}
-                              </span>
-
-                              <p className="text-sm font-medium text-gray-700 leading-relaxed break-words min-w-0">
-                                {r.product_a}
-                                <span className="text-purple-500 mx-1">+</span>
-                                {r.product_b}
-                              </p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 pl-9">
-                              <span className="text-[11px] px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-500">
-                                {r.pair_orders} bills
-                              </span>
-
-                              <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-semibold">
-                                Lift {r.lift}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-400 text-center py-5 bg-gray-50 rounded-xl">
-                      ยังไม่มีข้อมูลคู่สินค้าสำหรับวิเคราะห์
-                    </p>
-                  )}
+                  <span
+                    className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full font-semibold ${
+                      r.strength === "strong"
+                        ? "bg-purple-600 text-white"
+                        : "bg-purple-100 text-purple-700"
+                    }`}
+                  >
+                    {r.strength === "strong" ? "ซื้อคู่กันบ่อยมาก" : "ซื้อคู่กันบ่อย"}
+                  </span>
                 </div>
-              )}
+
+                <div className="pl-9 space-y-2">
+                  <p className="text-xs text-gray-500">
+                    ซื้อพร้อมกัน <b className="text-gray-700">{r.pair_orders}</b> บิล ({r.together_pct}% ของบิลทั้งหมด)
+                  </p>
+
+                  <PctBar
+                    label={`ซื้อ ${r.product_a} แล้วซื้อ ${r.product_b} ด้วย`}
+                    pct={r.a_to_b_pct ?? 0}
+                  />
+                  <PctBar
+                    label={`ซื้อ ${r.product_b} แล้วซื้อ ${r.product_a} ด้วย`}
+                    pct={r.b_to_a_pct ?? 0}
+                  />
+
+                  <p className="text-xs font-semibold text-purple-700">
+                    แนะนำ: วางสองอย่างนี้ติดกันบนชั้นเดียวกัน
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    })()}
+  </div>
+)}
 
               {/* Updated Time */}
               <div className="pt-3 border-t border-gray-100">

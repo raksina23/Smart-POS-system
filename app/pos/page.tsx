@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 import BarcodeScanner from "../components/BarcodeScanner"; // adjust path to wherever you put it
+import { useI18n } from "../lib/i18n";
+import { TKey } from "../lib/dictionaries";
 
 interface CartItem {
   id: string;
@@ -14,11 +16,16 @@ interface CartItem {
   stock_qty: number;
 }
 
+// เก็บข้อความ error เป็น "คีย์ + ตัวแปร" แล้วแปลตอนแสดงผล
+// เพื่อให้สลับภาษาแล้วข้อความที่ขึ้นอยู่เปลี่ยนตามทันที
+type Msg = { key: TKey; vars?: Record<string, string | number> } | null;
+
 export default function POSPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<Msg>(null);
 
   const [role, setRole] = useState<string>("");
   const [loadingRole, setLoadingRole] = useState(true);
@@ -26,7 +33,7 @@ export default function POSPage() {
 
   // --- scanner state ---
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [cameraError, setCameraError] = useState("");
+  const [cameraError, setCameraError] = useState(false);
 
   useEffect(() => {
     const checkAuthAndRole = async () => {
@@ -65,7 +72,7 @@ export default function POSPage() {
 
   const addToCart = useCallback(async (barcode: string) => {
     setLoading(true);
-    setError("");
+    setError(null);
 
     try {
       const { data: product, error: dbError } = await supabase
@@ -76,9 +83,7 @@ export default function POSPage() {
         .single();
 
       if (dbError || !product) {
-        // Contains a variable (barcode) — kept single-language for a
-        // quick, readable message instead of duplicating the code twice.
-        setError(`ไม่พบสินค้าบาร์โค้ด: ${barcode}`);
+        setError({ key: "pos.notFound", vars: { barcode } });
         setLoading(false);
         return;
       }
@@ -89,8 +94,7 @@ export default function POSPage() {
       );
 
       if (totalStock <= 0) {
-        // Contains the product name — single-language, same reasoning.
-        setError(`สินค้า "${product.name}" หมดสต็อก`);
+        setError({ key: "pos.outOfStock", vars: { name: product.name } });
         setLoading(false);
         return;
       }
@@ -108,7 +112,7 @@ export default function POSPage() {
         const existing = prev.find((item) => item.barcode === barcode);
         if (existing) {
           if (existing.qty + 1 > totalStock) {
-            setError("สต็อกไม่พอ / Not enough stock");
+            setError({ key: "pos.notEnoughStock" });
             return prev;
           }
           return prev.map((item) =>
@@ -119,8 +123,8 @@ export default function POSPage() {
         }
         return [...prev, cartProduct];
       });
-    } catch (err) {
-      setError("การเชื่อมต่อฐานข้อมูลขัดข้อง / Database connection error");
+    } catch {
+      setError({ key: "pos.dbError" });
     } finally {
       setLoading(false);
       setBarcodeInput("");
@@ -135,19 +139,17 @@ export default function POSPage() {
 
   // --- scanner handlers ---
   const openScanner = async () => {
-    setCameraError("");
+    setCameraError(false);
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("no-camera-api");
       }
       // quick permission probe; the actual stream is opened by BarcodeScanner itself
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setScannerOpen(true);
-    } catch (err) {
-      setCameraError(
-        "ไม่พบกล้อง หรือไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาใช้การคีย์บาร์โค้ดด้วยตนเองแทน / Camera not found or permission denied — use manual entry instead"
-      );
+    } catch {
+      setCameraError(true);
       setScannerOpen(false);
     }
   };
@@ -167,7 +169,7 @@ export default function POSPage() {
       prev.map((item) => {
         if (item.id === id) {
           if (item.qty + 1 > item.stock_qty) {
-            alert("สินค้าในสต็อกไม่พอ / Not enough stock");
+            alert(t("pos.notEnoughStock"));
             return item;
           }
           return { ...item, qty: item.qty + 1 };
@@ -193,7 +195,7 @@ export default function POSPage() {
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      setError("กรุณาเพิ่มสินค้าก่อนชำระเงิน / Please add items before checkout");
+      setError({ key: "pos.addItemsFirst" });
       return;
     }
     localStorage.setItem("cart", JSON.stringify(cart));
@@ -206,7 +208,7 @@ export default function POSPage() {
       <div className="h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 font-medium">กำลังตรวจสอบสิทธิ์การใช้งาน... / Checking permissions...</p>
+          <p className="text-gray-500 font-medium">{t("pos.checking")}</p>
         </div>
       </div>
     );
@@ -227,7 +229,7 @@ export default function POSPage() {
             >
               <span className="text-2xl mb-1">📷</span>
               <span className="text-gray-600 text-sm font-medium">
-                กดเพื่อเปิดกล้องสแกน / Tap to open scanner
+                {t("pos.openScanner")}
               </span>
             </button>
           ) : (
@@ -237,41 +239,41 @@ export default function POSPage() {
                 onClick={closeScanner}
                 className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md z-10"
               >
-                ✕ ปิดกล้อง
+                ✕ {t("pos.closeScanner")}
               </button>
             </div>
           )}
           {cameraError && (
-            <p className="text-red-500 text-xs mt-2 font-bold">{cameraError}</p>
+            <p className="text-red-500 text-xs mt-2 font-bold">{t("pos.cameraError")}</p>
           )}
         </div>
 
         <div className="px-4 py-3 bg-white border-b">
           <label className="text-xs font-medium text-gray-500 mb-1 block">
-            คีย์บาร์โค้ดด้วยตนเอง (กด Enter เพื่อเพิ่ม) / Enter barcode manually
+            {t("pos.manualLabel")}
           </label>
           <input
             type="text"
             disabled={loading}
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-            placeholder={loading ? "กำลังค้นหา..." : "เช่น 885111"}
+            placeholder={loading ? t("pos.searching") : t("pos.placeholder")}
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
             onKeyDown={handleBarcodeSubmit}
           />
           {error && (
-            <p className="text-red-500 text-xs mt-1 font-bold">{error}</p>
+            <p className="text-red-500 text-xs mt-1 font-bold">{t(error.key, error.vars)}</p>
           )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
           <h2 className="text-sm font-bold text-gray-600 mb-3">
-            รายการสินค้า ({cart.length}) / Items
+            {t("pos.items", { n: cart.length })}
           </h2>
 
           {cart.length === 0 ? (
             <div className="text-center text-gray-400 text-sm mt-10">
-              ยังไม่มีสินค้าในตะกร้า / Your cart is empty
+              {t("pos.cartEmpty")}
             </div>
           ) : (
             <div className="space-y-3">
@@ -280,7 +282,9 @@ export default function POSPage() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="font-semibold text-gray-800 text-sm">{item.name}</p>
-                      <p className="text-xs text-gray-400">฿{item.price.toFixed(2)} / ชิ้น</p>
+                      <p className="text-xs text-gray-400">
+                        {t("pos.perUnit", { price: item.price.toFixed(2) })}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-blue-600 text-sm">฿{(item.price * item.qty).toFixed(2)}</span>
@@ -294,8 +298,9 @@ export default function POSPage() {
                       <span className="text-base font-bold text-gray-800">{item.qty}</span>
                       <button onClick={() => increaseQty(item.id)} className="w-8 h-8 rounded-full border border-blue-400 text-blue-600 flex items-center justify-center">+</button>
                     </div>
-                    {/* Contains a variable (stock_qty) — single-language */}
-                    <span className="text-[10px] text-gray-400">สต็อก: {item.stock_qty}</span>
+                    <span className="text-[10px] text-gray-400">
+                      {t("pos.stock", { n: item.stock_qty })}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -305,7 +310,7 @@ export default function POSPage() {
 
         <div className="bg-white p-4 border-t shadow-inner">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-lg font-bold text-gray-700">ยอดรวมทั้งสิ้น / Total</span>
+            <span className="text-lg font-bold text-gray-700">{t("pos.total")}</span>
             <span className="text-2xl font-bold text-red-500">฿{totalPrice.toFixed(2)}</span>
           </div>
           <button
@@ -315,7 +320,7 @@ export default function POSPage() {
               cart.length === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
             }`}
           >
-            ชำระเงิน (Checkout)
+            {t("pos.checkout")}
           </button>
         </div>
       </div>
