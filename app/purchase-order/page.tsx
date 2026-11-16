@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
+import { useI18n } from "../lib/i18n";
 
 interface PurchaseItem {
   id: string;
@@ -19,28 +20,34 @@ const toLocalDateString = (d: Date) => {
 };
 
 export default function PurchaseOrderPage() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const billRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [saving, setSaving] = useState(false);
   // ใช้แสดงรูปให้กดค้างบันทึกเอง (เบราว์เซอร์ใน LINE / Facebook)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("purchaseOrderItems");
     if (saved) setItems(JSON.parse(saved));
+    setNow(new Date());
   }, []);
 
-  const now = new Date();
-  const dateStr = now.toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const timeStr = now.toLocaleTimeString("th-TH", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const dateStr = now
+    ? now.toLocaleDateString(locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
+  const timeStr = now
+    ? now.toLocaleTimeString(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
   const handleSaveImage = async () => {
     if (!billRef.current) return;
@@ -55,7 +62,7 @@ export default function PurchaseOrderPage() {
         cacheBust: true,
       });
 
-      const fileName = `purchase-order-${toLocalDateString(now)}.png`;
+      const fileName = `purchase-order-${toLocalDateString(now ?? new Date())}.png`;
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], fileName, { type: "image/png" });
 
@@ -64,7 +71,7 @@ export default function PurchaseOrderPage() {
         try {
           await navigator.share({
             files: [file],
-            title: "ใบสั่งซื้อ / Purchase Order",
+            title: t("purchaseOrder.shareTitle"),
           });
           return;
         } catch (err) {
@@ -93,7 +100,7 @@ export default function PurchaseOrderPage() {
       setPreviewUrl(dataUrl);
     } catch (err) {
       console.error(err);
-      alert("เกิดข้อผิดพลาดในการบันทึกรูป / Error saving image");
+      alert(t("purchaseOrder.saveError"));
     } finally {
       setSaving(false);
     }
@@ -109,14 +116,14 @@ export default function PurchaseOrderPage() {
             onClick={() => router.push("/dashboard")}
             className="text-gray-500 hover:text-gray-700 flex items-center gap-1 text-sm font-medium"
           >
-            ← กลับ / Back
+            {t("purchaseOrder.back")}
           </button>
           <button
             onClick={handleSaveImage}
             disabled={saving}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
           >
-            {saving ? "กำลังบันทึก..." : "📥 บันทึกเป็นรูป / Save as Image"}
+            {saving ? t("purchaseOrder.saving") : t("purchaseOrder.saveAsImage")}
           </button>
         </div>
 
@@ -129,21 +136,21 @@ export default function PurchaseOrderPage() {
           <div className="text-center border-b border-dashed border-gray-300 pb-4 mb-4">
             <h1 className="text-2xl font-bold text-orange-600">Smart POS</h1>
             <p className="text-gray-500 text-sm mt-1">
-              ใบสั่งซื้อสินค้า / Purchase Order
+              {t("purchaseOrder.title")}
             </p>
             <div className="mt-2 text-xs text-gray-400 space-y-0.5">
-              <p>วันที่ / Date: {dateStr}</p>
-              <p>เวลา / Time: {timeStr} น.</p>
+              <p>{t("purchaseOrder.date", { date: dateStr })}</p>
+              <p>{t("purchaseOrder.time", { time: timeStr })}</p>
             </div>
           </div>
 
           {/* หัวตาราง */}
           <div className="grid grid-cols-12 text-xs font-bold text-gray-400 uppercase mb-2 px-1">
             <span className="col-span-1">#</span>
-            <span className="col-span-5">ชื่อสินค้า / Product</span>
-            <span className="col-span-2 text-center">คงเหลือ / Stock</span>
-            <span className="col-span-2 text-center">ขั้นต่ำ / Min</span>
-            <span className="col-span-2 text-center">ต้องซื้อ / Need</span>
+            <span className="col-span-5">{t("purchaseOrder.colProduct")}</span>
+            <span className="col-span-2 text-center">{t("purchaseOrder.colStock")}</span>
+            <span className="col-span-2 text-center">{t("purchaseOrder.colMin")}</span>
+            <span className="col-span-2 text-center">{t("purchaseOrder.colNeed")}</span>
           </div>
 
           {/* รายการสินค้า */}
@@ -178,22 +185,23 @@ export default function PurchaseOrderPage() {
           {/* สรุป */}
           <div className="border-t border-dashed border-gray-300 mt-4 pt-4 space-y-1">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">จำนวนรายการ / Total Items</span>
+              <span className="text-gray-500">{t("purchaseOrder.totalItems")}</span>
               <span className="font-bold text-gray-800">
-                {items.length} รายการ
+                {t("alerts.itemCount", { n: items.length })}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">
-                จำนวนชิ้นที่ต้องสั่ง / Total Units Needed
+                {t("purchaseOrder.totalUnitsNeeded")}
               </span>
               <span className="font-bold text-orange-600">
-                {items.reduce(
-                  (sum, item) =>
-                    sum + Math.max(item.min_stock - item.stock_qty, 0),
-                  0
-                )}{" "}
-                ชิ้น
+                {t("purchaseOrder.unitCount", {
+                  n: items.reduce(
+                    (sum, item) =>
+                      sum + Math.max(item.min_stock - item.stock_qty, 0),
+                    0
+                  ),
+                })}
               </span>
             </div>
           </div>
@@ -201,10 +209,10 @@ export default function PurchaseOrderPage() {
           {/* Footer */}
           <div className="text-center mt-6 pt-4 border-t border-dashed border-gray-200">
             <p className="text-xs text-gray-400">
-              สร้างโดย / Generated by Smart POS
+              {t("purchaseOrder.generatedBy")}
             </p>
             <p className="text-xs text-gray-300 mt-0.5">
-              {now.toISOString()}
+              {now ? now.toISOString() : ""}
             </p>
           </div>
         </div>
@@ -215,14 +223,14 @@ export default function PurchaseOrderPage() {
             onClick={() => router.push("/dashboard")}
             className="flex-1 border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition text-sm"
           >
-            ← กลับหน้าหลัก / Back to Dashboard
+            {t("purchaseOrder.backToDashboard")}
           </button>
           <button
             onClick={handleSaveImage}
             disabled={saving}
             className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 text-sm"
           >
-            {saving ? "กำลังบันทึก..." : "📥 บันทึกเป็นรูป / Save Image"}
+            {saving ? t("purchaseOrder.saving") : t("purchaseOrder.saveImage")}
           </button>
         </div>
       </div>
@@ -232,19 +240,18 @@ export default function PurchaseOrderPage() {
         <div className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-3 max-w-sm w-full max-h-[90vh] overflow-y-auto">
             <p className="text-sm text-center font-medium text-gray-700 mb-2">
-              กดรูปค้างไว้ แล้วเลือก "บันทึกรูปภาพ" /
-              Press and hold the image, then choose "Save Image"
+              {t("purchaseOrder.holdToSaveHint")}
             </p>
             <img
               src={previewUrl}
-              alt="Purchase Order"
+              alt={t("purchaseOrder.imageAlt")}
               className="w-full rounded-lg border"
             />
             <button
               onClick={() => setPreviewUrl(null)}
               className="mt-3 w-full py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-medium"
             >
-              ปิด / Close
+              {t("purchaseOrder.close")}
             </button>
           </div>
         </div>

@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "../../../components/Navbar";
 import { supabase } from "../../../lib/supabase";
+import { useI18n } from "../../../lib/i18n";
+import { TKey } from "../../../lib/dictionaries";
 
 interface Category {
   id: string;
@@ -10,7 +12,13 @@ interface Category {
   shelf_life_days: number | null;
 }
 
+type FieldError = {
+  key: TKey;
+  vars?: Record<string, string | number>;
+};
+
 export default function EditProductPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
@@ -27,7 +35,7 @@ export default function EditProductPage() {
     category: "",
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, FieldError | undefined>>({});
 
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -60,7 +68,7 @@ export default function EditProductPage() {
         .single();
 
       if (error || !data) {
-        alert("ไม่พบสินค้า / Product not found");
+        alert(t("editProduct.notFound"));
         router.push("/inventory");
         return;
       }
@@ -87,7 +95,7 @@ export default function EditProductPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: "" });
+    setErrors({ ...errors, [e.target.name]: undefined });
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,15 +103,15 @@ export default function EditProductPage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setErrors({ ...errors, photo: "กรุณาเลือกไฟล์รูปภาพ / Please select an image file" });
+      setErrors({ ...errors, photo: { key: "editProduct.errPhotoType" } });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setErrors({ ...errors, photo: "ขนาดไฟล์ต้องไม่เกิน 5MB / File must be under 5MB" });
+      setErrors({ ...errors, photo: { key: "editProduct.errPhotoSize" } });
       return;
     }
 
-    setErrors({ ...errors, photo: "" });
+    setErrors({ ...errors, photo: undefined });
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
     setPhotoRemoved(false);
@@ -116,16 +124,16 @@ export default function EditProductPage() {
   };
 
   const validate = () => {
-    const newErrors: Record<string, string> = {};
-    if (!form.name) newErrors.name = "กรุณากรอกชื่อสินค้า / Please enter product name";
-    if (!form.barcode) newErrors.barcode = "กรุณากรอกบาร์โค้ด / Please enter barcode";
+    const newErrors: Record<string, FieldError> = {};
+    if (!form.name) newErrors.name = { key: "editProduct.errNameRequired" };
+    if (!form.barcode) newErrors.barcode = { key: "editProduct.errBarcodeRequired" };
     if (!form.price || isNaN(Number(form.price)))
-      newErrors.price = "กรุณากรอกราคาขายให้ถูกต้อง / Invalid selling price";
+      newErrors.price = { key: "editProduct.errPriceInvalid" };
     if (!form.cost || isNaN(Number(form.cost)))
-      newErrors.cost = "กรุณากรอกราคาทุนให้ถูกต้อง / Invalid cost price";
+      newErrors.cost = { key: "editProduct.errCostInvalid" };
     if (!form.minStock || isNaN(Number(form.minStock)))
-      newErrors.minStock = "กรุณากรอกจำนวนขั้นต่ำให้ถูกต้อง / Invalid minimum stock";
-    if (!form.category) newErrors.category = "กรุณาเลือกหมวดหมู่ / Please select category";
+      newErrors.minStock = { key: "editProduct.errMinStockInvalid" };
+    if (!form.category) newErrors.category = { key: "editProduct.errCategoryRequired" };
     return newErrors;
   };
 
@@ -157,7 +165,7 @@ export default function EditProductPage() {
 
       if (uploadError) {
         setSaving(false);
-        alert("อัปโหลดรูปไม่สำเร็จ / Photo upload failed: " + uploadError.message);
+        alert(t("editProduct.uploadFailed", { message: uploadError.message }));
         return;
       }
 
@@ -186,11 +194,11 @@ export default function EditProductPage() {
     setSaving(false);
 
     if (error) {
-      alert("เกิดข้อผิดพลาด / Error: " + error.message);
+      alert(t("editProduct.saveError", { message: error.message }));
       return;
     }
 
-    alert(`แก้ไขสินค้า "${form.name}" สำเร็จ! / Product updated successfully!`);
+    alert(t("editProduct.updateSuccess", { name: form.name }));
     router.push("/inventory");
   };
 
@@ -204,7 +212,7 @@ export default function EditProductPage() {
       <div className="min-h-screen bg-gray-50">
         <Navbar role="Admin" />
         <div className="text-center py-20 text-gray-400">
-          กำลังโหลดข้อมูล... / Loading...
+          {t("editProduct.loadingData")}
         </div>
       </div>
     );
@@ -223,7 +231,7 @@ export default function EditProductPage() {
             ←
           </button>
           <h1 className="text-2xl font-bold text-gray-800">
-            แก้ไขสินค้า <span className="text-gray-400 font-normal text-lg">(Edit Product)</span>
+            {t("editProduct.title")}
           </h1>
         </div>
 
@@ -231,14 +239,14 @@ export default function EditProductPage() {
 
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <h2 className="text-sm font-bold text-gray-600">
-              รูปสินค้า / Product Photo
+              {t("editProduct.photoSection")}
             </h2>
 
             {photoPreview ? (
               <div className="relative w-32 h-32">
                 <img
                   src={photoPreview}
-                  alt="Preview"
+                  alt={t("editProduct.photoPreviewAlt")}
                   className="w-32 h-32 object-cover rounded-lg border border-gray-200"
                 />
                 <button
@@ -252,7 +260,7 @@ export default function EditProductPage() {
             ) : (
               <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition text-gray-400 text-xs gap-1">
                 <span className="text-2xl">📷</span>
-                <span>เพิ่มรูป / Add Photo</span>
+                <span>{t("editProduct.addPhoto")}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -262,15 +270,19 @@ export default function EditProductPage() {
                 />
               </label>
             )}
-            {errors.photo && <p className="text-red-500 text-xs">{errors.photo}</p>}
+            {errors.photo && (
+              <p className="text-red-500 text-xs">{t(errors.photo.key, errors.photo.vars)}</p>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">ข้อมูลทั่วไป / General Info</h2>
+            <h2 className="text-sm font-bold text-gray-600">
+              {t("editProduct.generalInfoSection")}
+            </h2>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                ชื่อสินค้า / Product Name <span className="text-red-500">*</span>
+                {t("editProduct.nameLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -279,12 +291,14 @@ export default function EditProductPage() {
                 onChange={handleChange}
                 className={inputClass}
               />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.name.key, errors.name.vars)}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                บาร์โค้ด / Barcode <span className="text-red-500">*</span>
+                {t("editProduct.barcodeLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -294,12 +308,14 @@ export default function EditProductPage() {
                 onChange={handleChange}
                 className={inputClass}
               />
-              {errors.barcode && <p className="text-red-500 text-xs mt-1">{errors.barcode}</p>}
+              {errors.barcode && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.barcode.key, errors.barcode.vars)}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                หมวดหมู่ / Category <span className="text-red-500">*</span>
+                {t("editProduct.categoryLabel")} <span className="text-red-500">*</span>
               </label>
               <select
                 name="category"
@@ -309,32 +325,42 @@ export default function EditProductPage() {
                 className={`${inputClass} bg-white`}
               >
                 <option value="">
-                  {loadingCategories ? "กำลังโหลด... / Loading..." : "เลือกหมวดหมู่ / Select category"}
+                  {loadingCategories ? t("common.loading") : t("editProduct.selectCategory")}
                 </option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.name}>
-                    {cat.name}
-                    {cat.shelf_life_days != null ? ` (อายุ ${cat.shelf_life_days} วัน)` : ""}
+                    {cat.shelf_life_days != null
+                      ? t("editProduct.categoryShelfLife", {
+                          name: cat.name,
+                          days: cat.shelf_life_days,
+                        })
+                      : cat.name}
                   </option>
                 ))}
                 {/* keep the product's current category selectable even if it
                     was later deleted/renamed in the categories table */}
                 {form.category && !categories.some((c) => c.name === form.category) && (
-                  <option value={form.category}>{form.category} (ไม่พบในระบบ)</option>
+                  <option value={form.category}>
+                    {t("editProduct.categoryNotFound", { name: form.category })}
+                  </option>
                 )}
               </select>
-              {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
+              {errors.category && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.category.key, errors.category.vars)}</p>
+              )}
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">ราคา / Pricing</h2>
+            <h2 className="text-sm font-bold text-gray-600">
+              {t("editProduct.pricingSection")}
+            </h2>
 
             {/* 1 คอลัมน์บนมือถือ, 2 คอลัมน์ตั้งแต่ sm ขึ้นไป */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ราคาขาย / Selling Price (฿) <span className="text-red-500">*</span>
+                  {t("editProduct.priceLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -347,12 +373,14 @@ export default function EditProductPage() {
                   step="any"
                   className={inputClass}
                 />
-                {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+                {errors.price && (
+                  <p className="text-red-500 text-xs mt-1">{t(errors.price.key, errors.price.vars)}</p>
+                )}
               </div>
 
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ราคาทุน / Cost Price (฿) <span className="text-red-500">*</span>
+                  {t("editProduct.costLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -365,14 +393,18 @@ export default function EditProductPage() {
                   step="any"
                   className={inputClass}
                 />
-                {errors.cost && <p className="text-red-500 text-xs mt-1">{errors.cost}</p>}
+                {errors.cost && (
+                  <p className="text-red-500 text-xs mt-1">{t(errors.cost.key, errors.cost.vars)}</p>
+                )}
               </div>
             </div>
 
             {Number(form.price) > 0 && form.cost && (
               <div className="bg-green-50 rounded-lg px-4 py-2 text-sm">
                 <span className="text-green-700 font-medium">
-                  กำไรโดยประมาณ / Est. Profit: ฿{(Number(form.price) - Number(form.cost)).toFixed(2)}
+                  {t("editProduct.estProfit", {
+                    amount: (Number(form.price) - Number(form.cost)).toFixed(2),
+                  })}
                 </span>
                 <span className="text-green-500 ml-2">
                   ({(((Number(form.price) - Number(form.cost)) / Number(form.price)) * 100).toFixed(1)}%)
@@ -382,15 +414,16 @@ export default function EditProductPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">จำนวนขั้นต่ำ / Minimum Stock</h2>
+            <h2 className="text-sm font-bold text-gray-600">
+              {t("editProduct.minStockSection")}
+            </h2>
             <p className="text-xs text-gray-400 -mt-2">
-              จำนวนสต็อกปัจจุบันจัดการผ่านปุ่ม "รับสินค้า" ในหน้าคลังสินค้า /
-              Current stock quantity is managed via the "Restock" button on the inventory page.
+              {t("editProduct.minStockHint")}
             </p>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                จำนวนขั้นต่ำ / Minimum Stock <span className="text-red-500">*</span>
+                {t("editProduct.minStockLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -402,7 +435,9 @@ export default function EditProductPage() {
                 min="0"
                 className={inputClass}
               />
-              {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
+              {errors.minStock && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.minStock.key, errors.minStock.vars)}</p>
+              )}
             </div>
           </div>
 
@@ -412,14 +447,14 @@ export default function EditProductPage() {
               onClick={() => router.push("/inventory")}
               className="flex-1 border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
             >
-              ยกเลิก / Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {saving || uploading ? "กำลังบันทึก... / Saving..." : "บันทึกการแก้ไข / Save Changes"}
+              {saving || uploading ? t("editProduct.saving") : t("editProduct.saveChanges")}
             </button>
           </div>
 

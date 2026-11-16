@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { useI18n } from "../lib/i18n";
+import { TKey } from "../lib/dictionaries";
 
 type Kind = "purchase" | "shelf";
 
@@ -49,6 +51,8 @@ function PctBar({ label, pct }: { label: string; pct: number }) {
 }
 
 export default function AiInsights() {
+  const { t, locale } = useI18n();
+
   const [recs, setRecs] = useState<{
     purchase: Rec;
     shelf: Rec;
@@ -58,7 +62,10 @@ export default function AiInsights() {
   });
 
   const [busy, setBusy] = useState<Kind | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{
+    key: TKey;
+    vars?: Record<string, string | number>;
+  } | null>(null);
 
   const call = async (method: "GET" | "POST", kind?: Kind) => {
     const {
@@ -71,13 +78,13 @@ export default function AiInsights() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session?.access_token ?? ""}`,
       },
-      body: kind ? JSON.stringify({ kind }) : undefined,
+      body: kind ? JSON.stringify({ kind, locale }) : undefined,
     });
 
     const json = await res.json();
 
     if (!res.ok) {
-      throw new Error(json.error ?? "เกิดข้อผิดพลาด");
+      throw new Error(json.error ?? "");
     }
 
     return json;
@@ -91,13 +98,20 @@ export default function AiInsights() {
 
   const generate = async (kind: Kind) => {
     setBusy(kind);
-    setError("");
+    setError(null);
 
     try {
       await call("POST", kind);
       setRecs(await call("GET"));
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      if (msg === "NO_FREQUENT_PAIRS") {
+        setError({ key: "aiInsights.errorNoFrequentPairs" });
+      } else if (msg) {
+        setError({ key: "aiInsights.errorMessage", vars: { message: msg } });
+      } else {
+        setError({ key: "aiInsights.errorGeneric" });
+      }
     } finally {
       setBusy(null);
     }
@@ -149,10 +163,10 @@ export default function AiInsights() {
               {isBusy ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                  กำลังวิเคราะห์...
+                  {t("aiInsights.analyzing")}
                 </span>
               ) : (
-                "✦ วิเคราะห์ / Analyze"
+                t("aiInsights.analyze")
               )}
             </button>
 
@@ -167,7 +181,7 @@ export default function AiInsights() {
               {/* AI Summary */}
               <div className="bg-purple-50/70 rounded-xl p-4 border border-purple-100">
                 <p className="text-xs font-bold text-purple-700 mb-2">
-                  AI Recommendation
+                  {t("aiInsights.aiRecommendation")}
                 </p>
 
                 <p className="text-sm text-gray-700 leading-7 whitespace-pre-line break-words">
@@ -180,18 +194,18 @@ export default function AiInsights() {
                 <div className="space-y-3 min-w-0">
                   <div>
                     <h4 className="text-sm font-bold text-gray-800">
-                      Recommended Products
+                      {t("aiInsights.recommendedProducts")}
                     </h4>
 
                     <p className="text-xs text-gray-400 mt-1">
-                      สินค้าที่ระบบแนะนำให้สั่งซื้อเพิ่ม
+                      {t("aiInsights.recommendedProductsSubtitle")}
                     </p>
                   </div>
 
                   {(() => {
                     const items = (rec.source_data as PurchaseItem[])
                       .filter((r) => r.suggested_qty > 0)
-                      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999)) // เรียงเร่งด่วนก่อน ตรงกับข้อความ AI
+                      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999))
                       .slice(0, 5);
 
                     return items.length > 0 ? (
@@ -199,10 +213,10 @@ export default function AiInsights() {
                         <table className="w-full text-xs text-left min-w-[420px]">
                           <thead className="bg-gray-50 text-gray-500">
                             <tr>
-                              <th className="px-3 py-3 font-semibold">Product</th>
-                              <th className="px-3 py-3 font-semibold text-center">Days left</th>
-                              <th className="px-3 py-3 font-semibold text-center">Stock</th>
-                              <th className="px-3 py-3 font-semibold text-center">Suggest</th>
+                              <th className="px-3 py-3 font-semibold">{t("aiInsights.colProduct")}</th>
+                              <th className="px-3 py-3 font-semibold text-center">{t("aiInsights.colDaysLeft")}</th>
+                              <th className="px-3 py-3 font-semibold text-center">{t("aiInsights.colStock")}</th>
+                              <th className="px-3 py-3 font-semibold text-center">{t("aiInsights.colSuggest")}</th>
                             </tr>
                           </thead>
 
@@ -217,7 +231,7 @@ export default function AiInsights() {
                                 </td>
 
                                 <td className="px-3 py-3 text-center text-gray-600">
-                                  {r.days_left != null ? `${r.days_left} วัน` : "-"}
+                                  {r.days_left != null ? t("aiInsights.daysLeft", { n: r.days_left }) : "-"}
                                 </td>
 
                                 <td className="px-3 py-3 text-center text-gray-600">
@@ -234,7 +248,7 @@ export default function AiInsights() {
                       </div>
                     ) : (
                       <p className="text-xs text-gray-400 text-center py-5 bg-gray-50 rounded-xl">
-                        ยังไม่มีสินค้าที่ต้องสั่งซื้อเพิ่ม
+                        {t("aiInsights.noPurchaseItems")}
                       </p>
                     );
                   })()}
@@ -243,93 +257,110 @@ export default function AiInsights() {
 
               {/* Shelf Arrangement */}
               {kind === "shelf" && (
-  <div className="space-y-3 min-w-0">
-    <div>
-      <h4 className="text-sm font-bold text-gray-800">Recommended Pairs</h4>
-      <p className="text-xs text-gray-400 mt-1">
-        คู่สินค้าที่ควรวางใกล้กัน เรียงจากซื้อพร้อมกันบ่อยที่สุด
-      </p>
-    </div>
-
-    {(() => {
-      const pairs = rec.source_data as ShelfItem[];
-
-      // ผลที่บันทึกไว้ก่อนอัปเดตจะไม่มีตัวเลขชุดใหม่
-      if (pairs.length === 0 || pairs[0].total_bills === undefined) {
-        return (
-          <p className="text-xs text-gray-400 text-center py-5 bg-gray-50 rounded-xl">
-            กดปุ่ม Analyze อีกครั้งเพื่ออัปเดตผลวิเคราะห์
-          </p>
-        );
-      }
-
-      return (
-        <>
-          <p className="text-xs text-gray-500">
-            วิเคราะห์จาก {pairs[0].total_bills} บิล (30 วันล่าสุด) · พบ {pairs.length} คู่ที่ควรวางใกล้กัน
-          </p>
-
-          <div className="space-y-2">
-            {pairs.map((r, i) => (
-              <div
-                key={i}
-                className="p-3 sm:p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <span className="shrink-0 w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">
-                      {i + 1}
-                    </span>
-                    <p className="text-sm font-medium text-gray-700 leading-relaxed break-words min-w-0">
-                      {r.product_a}
-                      <span className="text-purple-500 mx-1">+</span>
-                      {r.product_b}
+                <div className="space-y-3 min-w-0">
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-800">
+                      {t("aiInsights.recommendedPairs")}
+                    </h4>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {t("aiInsights.recommendedPairsSubtitle")}
                     </p>
                   </div>
 
-                  <span
-                    className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full font-semibold ${
-                      r.strength === "strong"
-                        ? "bg-purple-600 text-white"
-                        : "bg-purple-100 text-purple-700"
-                    }`}
-                  >
-                    {r.strength === "strong" ? "ซื้อคู่กันบ่อยมาก" : "ซื้อคู่กันบ่อย"}
-                  </span>
+                  {(() => {
+                    const pairs = rec.source_data as ShelfItem[];
+
+                    if (pairs.length === 0 || pairs[0].total_bills === undefined) {
+                      return (
+                        <p className="text-xs text-gray-400 text-center py-5 bg-gray-50 rounded-xl">
+                          {t("aiInsights.reanalyzePrompt")}
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <>
+                        <p className="text-xs text-gray-500">
+                          {t("aiInsights.analyzedSummary", {
+                            bills: pairs[0].total_bills,
+                            pairs: pairs.length,
+                          })}
+                        </p>
+
+                        <div className="space-y-2">
+                          {pairs.map((r, i) => (
+                            <div
+                              key={i}
+                              className="p-3 sm:p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <span className="shrink-0 w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">
+                                    {i + 1}
+                                  </span>
+                                  <p className="text-sm font-medium text-gray-700 leading-relaxed break-words min-w-0">
+                                    {r.product_a}
+                                    <span className="text-purple-500 mx-1">+</span>
+                                    {r.product_b}
+                                  </p>
+                                </div>
+
+                                <span
+                                  className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full font-semibold ${
+                                    r.strength === "strong"
+                                      ? "bg-purple-600 text-white"
+                                      : "bg-purple-100 text-purple-700"
+                                  }`}
+                                >
+                                  {r.strength === "strong"
+                                    ? t("aiInsights.strengthStrong")
+                                    : t("aiInsights.strengthMedium")}
+                                </span>
+                              </div>
+
+                              <div className="pl-9 space-y-2">
+                                <p className="text-xs text-gray-500">
+                                  {t("aiInsights.boughtTogetherPrefix")}{" "}
+                                  <b className="text-gray-700">{r.pair_orders}</b>{" "}
+                                  {t("aiInsights.boughtTogetherSuffix", {
+                                    pct: r.together_pct ?? 0,
+                                  })}
+                                </p>
+
+                                <PctBar
+                                  label={t("aiInsights.crossBuyLabel", {
+                                    productA: r.product_a,
+                                    productB: r.product_b,
+                                  })}
+                                  pct={r.a_to_b_pct ?? 0}
+                                />
+                                <PctBar
+                                  label={t("aiInsights.crossBuyLabel", {
+                                    productA: r.product_b,
+                                    productB: r.product_a,
+                                  })}
+                                  pct={r.b_to_a_pct ?? 0}
+                                />
+
+                                <p className="text-xs font-semibold text-purple-700">
+                                  {t("aiInsights.shelfTip")}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
-
-                <div className="pl-9 space-y-2">
-                  <p className="text-xs text-gray-500">
-                    ซื้อพร้อมกัน <b className="text-gray-700">{r.pair_orders}</b> บิล ({r.together_pct}% ของบิลทั้งหมด)
-                  </p>
-
-                  <PctBar
-                    label={`ซื้อ ${r.product_a} แล้วซื้อ ${r.product_b} ด้วย`}
-                    pct={r.a_to_b_pct ?? 0}
-                  />
-                  <PctBar
-                    label={`ซื้อ ${r.product_b} แล้วซื้อ ${r.product_a} ด้วย`}
-                    pct={r.b_to_a_pct ?? 0}
-                  />
-
-                  <p className="text-xs font-semibold text-purple-700">
-                    แนะนำ: วางสองอย่างนี้ติดกันบนชั้นเดียวกัน
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      );
-    })()}
-  </div>
-)}
+              )}
 
               {/* Updated Time */}
               <div className="pt-3 border-t border-gray-100">
                 <p className="text-[10px] sm:text-xs text-gray-400">
-                  Last analyzed ·{" "}
-                  {new Date(rec.created_at).toLocaleString("th-TH")}
+                  {t("aiInsights.lastAnalyzed", {
+                    date: new Date(rec.created_at).toLocaleString(locale),
+                  })}
                 </p>
               </div>
             </>
@@ -340,11 +371,11 @@ export default function AiInsights() {
               </div>
 
               <p className="text-sm font-semibold text-gray-600">
-                ยังไม่มีผลวิเคราะห์
+                {t("aiInsights.noAnalysis")}
               </p>
 
               <p className="text-xs text-gray-400 mt-2 max-w-[220px] leading-relaxed">
-                กดปุ่ม Analyze เพื่อให้ระบบวิเคราะห์ข้อมูลและสร้างคำแนะนำ
+                {t("aiInsights.noAnalysisHint")}
               </p>
             </div>
           )}
@@ -363,12 +394,12 @@ export default function AiInsights() {
           <span className="text-xl sm:text-2xl">🤖</span>
 
           <h2 className="text-lg sm:text-xl font-bold text-gray-800">
-            AI Insights
+            {t("aiInsights.title")}
           </h2>
         </div>
 
         <p className="text-xs sm:text-sm text-gray-500">
-          Smart recommendations for purchasing and shelf arrangement
+          {t("aiInsights.subtitle")}
         </p>
       </div>
 
@@ -376,7 +407,7 @@ export default function AiInsights() {
       {error && (
         <div className="p-3 sm:p-4 bg-red-50 border border-red-100 rounded-xl">
           <p className="text-xs sm:text-sm text-red-600 break-words">
-            {error}
+            {t(error.key, error.vars)}
           </p>
         </div>
       )}
@@ -386,16 +417,16 @@ export default function AiInsights() {
 
         <Card
           kind="purchase"
-          title="แผนการซื้อของเข้าร้าน"
-          subtitle="Purchase Plan · วิเคราะห์ยอดขายและสต็อก"
+          title={t("aiInsights.purchaseTitle")}
+          subtitle={t("aiInsights.purchaseSubtitle")}
           icon="🛒"
           rec={recs.purchase}
         />
 
         <Card
           kind="shelf"
-          title="แนะนำการจัดชั้นวาง"
-          subtitle="Shelf Arrangement · วิเคราะห์คู่สินค้าที่ซื้อร่วมกัน"
+          title={t("aiInsights.shelfTitle")}
+          subtitle={t("aiInsights.shelfSubtitle")}
           icon="📦"
           rec={recs.shelf}
         />

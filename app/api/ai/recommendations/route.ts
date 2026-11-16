@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// ใช้ service key ตัวเดียวกับ route สร้าง user ของคุณ (ชื่อ env อาจต่างกัน)
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -9,12 +8,10 @@ const admin = createClient(
 
 // ===== ส่วนเรียก dotBLUE =====
 function parseCompletion(text: string): string {
-  // กรณีตอบเป็น JSON ปกติ
   try {
     const data = JSON.parse(text);
     return data.choices?.[0]?.message?.content ?? "";
   } catch {
-    // กรณีตอบเป็น stream (SSE): แต่ละบรรทัดขึ้นต้นด้วย "data:" ให้ต่อข้อความจากทุกชิ้น
     let out = "";
     for (const line of text.split("\n")) {
       const t = line.trim();
@@ -35,7 +32,7 @@ function parseCompletion(text: string): string {
   }
 }
 
-async function callDotBlue(prompt: string): Promise<string> {
+async function callDotBlue(prompt: string, isEn: boolean): Promise<string> {
   const res = await fetch(process.env.DOTBLUE_API_URL!, {
     method: "POST",
     headers: {
@@ -44,7 +41,7 @@ async function callDotBlue(prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model: process.env.DOTBLUE_MODEL,
-      stream: false, // ขอให้ตอบเป็นก้อนเดียว
+      stream: false,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -53,7 +50,13 @@ async function callDotBlue(prompt: string): Promise<string> {
   if (!res.ok) throw new Error(`dotBLUE error ${res.status}: ${text.slice(0, 200)}`);
 
   const content = parseCompletion(text).trim();
-  if (!content) throw new Error(`dotBLUE ตอบว่าง: ${text.slice(0, 200)}`);
+  if (!content) {
+    throw new Error(
+      isEn
+        ? `dotBLUE empty response: ${text.slice(0, 200)}`
+        : `dotBLUE ตอบว่าง: ${text.slice(0, 200)}`
+    );
+  }
   return content;
 }
 // ===============================================================
@@ -89,7 +92,8 @@ export async function POST(req: NextRequest) {
   if (!(await requireAdmin(req)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { kind } = await req.json();
+  const { kind, locale = "th" } = await req.json();
+  const isEn = String(locale).toLowerCase().startsWith("en");
   let rows: unknown[] = [];
   let prompt = "";
 
@@ -108,15 +112,14 @@ export async function POST(req: NextRequest) {
 
     const all = (data as PlanRow[]).map((r) => ({
       ...r,
-      // ของจะหมดในกี่วัน คำนวณโดยโค้ด ไม่ให้ AI คำนวณเอง
       days_left: r.avg_daily > 0 ? Math.floor(r.current_stock / r.avg_daily) : null,
     }));
 
-    rows = all.slice(0, 40); // ใช้แสดงตารางใต้การ์ด
+    rows = all.slice(0, 40);
 
     const toBuy = all
       .filter((r) => r.suggested_qty > 0)
-      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999)); // เร่งด่วนก่อน
+      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999));
 
     const aiInput = {
       total_items_to_buy: toBuy.length,
@@ -129,15 +132,22 @@ export async function POST(req: NextRequest) {
       no_sales_28_days: all.filter((r) => r.units_sold === 0).slice(0, 3).map((r) => r.name),
     };
 
-    prompt =
-      `You help a small grocery store owner decide what to buy. The JSON below is computed by the system. Use ONLY these values; never change or add numbers.\n` +
-      `Reply in simple, friendly Thai, using exactly this layout and nothing else:\n` +
-      `Line 1: one short sentence saying how many items should be bought and the total units (use total_items_to_buy and total_units_to_buy).\n` +
-      `Then the heading "🛒 ควรซื้อ (เรียงจากเร่งด่วนที่สุด)" followed by one line per item in top_items_to_buy, in the same order, formatted as "• name — ซื้อ buy_qty ชิ้น (ของจะหมดใน days_left วัน)". If days_left is null, omit the brackets.\n` +
-      `If no_sales_28_days is not empty, add a final line "⏸ ไม่มียอดขายเลยใน 28 วัน ยังไม่ต้องซื้อ: " followed by the names separated by commas.\n` +
-      `If top_items_to_buy is empty, reply only "ตอนนี้สต็อกยังพอขาย ไม่ต้องซื้อเพิ่ม".\n` +
-      `Do not explain formulas or add advice.\nDATA: ${JSON.stringify(aiInput)}`;
-  }else if (kind === "shelf") {
+    prompt = isEn
+      ? `You help a small grocery store owner decide what to buy. The JSON below is computed by the system. Use ONLY these values; never change or add numbers.\n` +
+        `Reply in simple, friendly English ONLY (keep product names exactly as given in JSON), using exactly this layout and nothing else:\n` +
+        `Line 1: one short sentence saying how many items should be bought and the total units (use total_items_to_buy and total_units_to_buy), e.g. "You should buy 4 items, totaling 26 units."\n` +
+        `Then the heading "🛒 Recommended to Buy (Most Urgent First)" followed by one line per item in top_items_to_buy, in the same order, formatted as "• name — buy buy_qty units (runs out in days_left days)". If days_left is null, omit the brackets.\n` +
+        `If no_sales_28_days is not empty, add a final line "⏸ No sales in the last 28 days, no need to buy yet: " followed by the names separated by commas.\n` +
+        `If top_items_to_buy is empty, reply only "Current stock is sufficient, no need to buy more.".\n` +
+        `Do not explain formulas or add advice.\nDATA: ${JSON.stringify(aiInput)}`
+      : `You help a small grocery store owner decide what to buy. The JSON below is computed by the system. Use ONLY these values; never change or add numbers.\n` +
+        `Reply in simple, friendly Thai, using exactly this layout and nothing else:\n` +
+        `Line 1: one short sentence saying how many items should be bought and the total units (use total_items_to_buy and total_units_to_buy).\n` +
+        `Then the heading "🛒 ควรซื้อ (เรียงจากเร่งด่วนที่สุด)" followed by one line per item in top_items_to_buy, in the same order, formatted as "• name — ซื้อ buy_qty ชิ้น (ของจะหมดใน days_left วัน)". If days_left is null, omit the brackets.\n` +
+        `If no_sales_28_days is not empty, add a final line "⏸ ไม่มียอดขายเลยใน 28 วัน ยังไม่ต้องซื้อ: " followed by the names separated by commas.\n` +
+        `If top_items_to_buy is empty, reply only "ตอนนี้สต็อกยังพอขาย ไม่ต้องซื้อเพิ่ม".\n` +
+        `Do not explain formulas or add advice.\nDATA: ${JSON.stringify(aiInput)}`;
+  } else if (kind === "shelf") {
     const { data, error } = await admin.rpc("get_product_pairs", { days_window: 30, min_orders: 3 });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -151,10 +161,9 @@ export async function POST(req: NextRequest) {
       lift: number;
     };
 
-    // เกณฑ์ว่าคู่ไหนคุ้มจัดวางใกล้กัน ปรับตามขนาดร้านได้
-    const MIN_BILLS = 10; // ต้องอยู่ในบิลเดียวกันอย่างน้อยกี่บิล
-    const MIN_LIFT = 1.2; // 1.0 = บังเอิญล้วนๆ
-    const STRONG_LIFT = 1.5; // ตั้งแต่ค่านี้ขึ้นไปติดป้าย "บ่อยมาก"
+    const MIN_BILLS = 10;
+    const MIN_LIFT = 1.2;
+    const STRONG_LIFT = 1.5;
 
     const strong = (data as PairRow[])
       .filter((p) => p.pair_orders >= MIN_BILLS && p.lift >= MIN_LIFT)
@@ -164,19 +173,19 @@ export async function POST(req: NextRequest) {
         product_b: p.product_b,
         pair_orders: p.pair_orders,
         total_bills: p.total_bills,
-        together_pct: Math.round((100 * p.pair_orders) / p.total_bills), // % ของบิลทั้งหมด
-        a_to_b_pct: Math.round((100 * p.pair_orders) / p.bills_a), // ซื้อ A แล้วซื้อ B ด้วย
-        b_to_a_pct: Math.round((100 * p.pair_orders) / p.bills_b), // ซื้อ B แล้วซื้อ A ด้วย
+        together_pct: Math.round((100 * p.pair_orders) / p.total_bills),
+        a_to_b_pct: Math.round((100 * p.pair_orders) / p.bills_a),
+        b_to_a_pct: Math.round((100 * p.pair_orders) / p.bills_b),
         strength: p.lift >= STRONG_LIFT ? "strong" : "medium",
       }));
 
     if (strong.length === 0)
       return NextResponse.json(
-        { error: "ยังไม่พบสินค้าคู่ที่ซื้อด้วยกันบ่อยพอ (ต้องอยู่ในบิลเดียวกันอย่างน้อย 10 บิลใน 30 วัน)" },
+        { error: "NO_FREQUENT_PAIRS" },
         { status: 422 }
       );
 
-    rows = strong; // ข้อมูลใต้การ์ดจะตรงกับที่ AI ใช้
+    rows = strong;
 
     const aiInput = {
       total_bills: strong[0].total_bills,
@@ -188,19 +197,25 @@ export async function POST(req: NextRequest) {
       })),
     };
 
-    prompt =
-      `You help a small grocery store owner arrange shelves. The JSON lists product pairs often bought in the same bill during the last 30 days. Use ONLY these values; never add numbers or products.\n` +
-      `Reply in simple, friendly Thai using exactly this layout and nothing else:\n` +
-      `First line: "พบ {pairs_found} คู่สินค้าที่ควรวางใกล้กัน จากบิลย้อนหลัง 30 วัน ({total_bills} บิล)"\n` +
-      `Then one line per pair in pairs, in the same order: "• product_a + product_b — ซื้อพร้อมกัน bills_together บิล"\n` +
-      `Last line: start with "💡" and give one short practical tip (at most 20 words) about placing these pairs on the same shelf or next to each other.\n` +
-      `Do not mention lift, confidence, or any statistics terms.\nDATA: ${JSON.stringify(aiInput)}`;
+    prompt = isEn
+      ? `You help a small grocery store owner arrange shelves. The JSON lists product pairs often bought in the same bill during the last 30 days. Use ONLY these values; never add numbers or products.\n` +
+        `Reply in simple, friendly English ONLY (keep product names exactly as given in JSON) using exactly this layout and nothing else:\n` +
+        `First line: "Found {pairs_found} product pairs to place together from the last 30 days ({total_bills} bills)"\n` +
+        `Then one line per pair in pairs, in the same order: "• product_a + product_b — bought together in bills_together bills"\n` +
+        `Last line: start with "💡" and give one short practical tip (at most 20 words) about placing these pairs on the same shelf or next to each other.\n` +
+        `Do not mention lift, confidence, or any statistics terms.\nDATA: ${JSON.stringify(aiInput)}`
+      : `You help a small grocery store owner arrange shelves. The JSON lists product pairs often bought in the same bill during the last 30 days. Use ONLY these values; never add numbers or products.\n` +
+        `Reply in simple, friendly Thai using exactly this layout and nothing else:\n` +
+        `First line: "พบ {pairs_found} คู่สินค้าที่ควรวางใกล้กัน จากบิลย้อนหลัง 30 วัน ({total_bills} บิล)"\n` +
+        `Then one line per pair in pairs, in the same order: "• product_a + product_b — ซื้อพร้อมกัน bills_together บิล"\n` +
+        `Last line: start with "💡" and give one short practical tip (at most 20 words) about placing these pairs on the same shelf or next to each other.\n` +
+        `Do not mention lift, confidence, or any statistics terms.\nDATA: ${JSON.stringify(aiInput)}`;
   } else {
     return NextResponse.json({ error: "invalid kind" }, { status: 400 });
   }
 
   try {
-    const content = await callDotBlue(prompt);
+    const content = await callDotBlue(prompt, isEn);
     await admin.from("ai_recommendations").insert({ kind, content, source_data: rows });
     return NextResponse.json({ ok: true });
   } catch (e) {

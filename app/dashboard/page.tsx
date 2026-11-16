@@ -5,6 +5,8 @@ import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 import { bkkDate, daysLeftFrom } from "../lib/dates";
 import AiInsights from "../components/AiInsights";
+import { useI18n } from "../lib/i18n";
+import { TKey } from "../lib/dictionaries";
 
 interface ExpiringProduct {
   id: string; // stock_batches.id
@@ -33,7 +35,7 @@ interface CategoryDiscount {
 }
 
 interface MonthlyData {
-  month: string;
+  monthKey: TKey;
   amount: number;
   profit: number;
 }
@@ -45,12 +47,13 @@ function computeCategoryDiscountPrice(price: number, cost: number, discountPerce
   return Math.max(rawPrice, cost);
 }
 
-const getRestockAction = (activeBatchCount: number) =>
+const getRestockAction = (activeBatchCount: number): { labelKey: TKey; color: string } =>
   activeBatchCount >= 2
-    ? { label: "ควรเติมสต็อก / Restock from backup lot", color: "text-orange-600" }
-    : { label: "ควรซื้อของเข้าร้านเพิ่ม / Buy more stock", color: "text-red-600" };
+    ? { labelKey: "dashboard.restockFromBackup", color: "text-orange-600" }
+    : { labelKey: "dashboard.buyMoreStock", color: "text-red-600" };
 
 export default function DashboardPage() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const [expiringProducts, setExpiringProducts] = useState<ExpiringProduct[]>([]);
   const [categoryDiscounts, setCategoryDiscounts] = useState<Record<string, number>>({});
@@ -98,21 +101,21 @@ export default function DashboardPage() {
     const in7Days = new Date();
     in7Days.setDate(today.getDate() + 7);
 
-      const { data, error } = await supabase
-    .from("stock_batches")
-    .select(`
-      id,
-      product_id,
-      quantity,
-      expiration_date,
-      special_price,
-      products!inner ( name, price, cost, category, is_active )
-    `)
-    .eq("products.is_active", true)   
-    .gt("quantity", 0)
-    .lte("expiration_date", in7Days.toISOString().split("T")[0])
-    .gte("expiration_date", today.toISOString().split("T")[0])
-    .order("expiration_date");
+    const { data, error } = await supabase
+      .from("stock_batches")
+      .select(`
+        id,
+        product_id,
+        quantity,
+        expiration_date,
+        special_price,
+        products!inner ( name, price, cost, category, is_active )
+      `)
+      .eq("products.is_active", true)
+      .gt("quantity", 0)
+      .lte("expiration_date", in7Days.toISOString().split("T")[0])
+      .gte("expiration_date", today.toISOString().split("T")[0])
+      .order("expiration_date");
 
     if (!error && data) {
       const mapped = data.map((b: any) => {
@@ -217,14 +220,27 @@ export default function DashboardPage() {
     setTodayProfit(tProfit);
     setMonthSales(mSales);
 
-    const thMonths = ["ม.ค./Jan", "ก.พ./Feb", "มี.ค./Mar", "เม.ย./Apr", "พ.ค./May", "มิ.ย./Jun", "ก.ค./Jul", "ส.ค./Aug", "ก.ย./Sep", "ต.ค./Oct", "พ.ย./Nov", "ธ.ค./Dec"];
+    const monthKeys: TKey[] = [
+      "dashboard.monthJan",
+      "dashboard.monthFeb",
+      "dashboard.monthMar",
+      "dashboard.monthApr",
+      "dashboard.monthMay",
+      "dashboard.monthJun",
+      "dashboard.monthJul",
+      "dashboard.monthAug",
+      "dashboard.monthSep",
+      "dashboard.monthOct",
+      "dashboard.monthNov",
+      "dashboard.monthDec",
+    ];
     const last6: MonthlyData[] = [];
 
     for (let i = 5; i >= 0; i--) {
       const d = new Date(thisYear, thisMonth - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       last6.push({
-        month: thMonths[d.getMonth()],
+        monthKey: monthKeys[d.getMonth()],
         amount: monthMap[key]?.amount ?? 0,
         profit: monthMap[key]?.profit ?? 0,
       });
@@ -247,7 +263,7 @@ export default function DashboardPage() {
     setApplyingId(null);
 
     if (error) {
-      alert("เกิดข้อผิดพลาด / Error: " + error.message);
+      alert(t("dashboard.applyDiscountError", { message: error.message }));
       return;
     }
 
@@ -269,7 +285,7 @@ export default function DashboardPage() {
   const handleCreatePurchaseOrder = () => {
     const selected = lowStockProducts.filter((p) => selectedItems[p.id]);
     if (selected.length === 0) {
-      alert("กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ / Please select items to order");
+      alert(t("dashboard.selectItemsToOrder"));
       return;
     }
     localStorage.setItem("purchaseOrderItems", JSON.stringify(selected));
@@ -278,10 +294,10 @@ export default function DashboardPage() {
 
   const maxAmount = Math.max(...monthlyData.map((d) => d.amount), 1);
   const now = new Date();
-  const timeStr = now.toLocaleTimeString("th-TH", { 
-  hour: "2-digit", 
-  minute: "2-digit",
-  timeZone: "Asia/Bangkok"
+  const timeStr = now.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Bangkok",
   });
 
   return (
@@ -294,50 +310,43 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-start justify-between gap-2 mt-2">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
-              ภาพรวมระบบ{" "}
-              <span className="text-gray-400 font-normal text-base sm:text-lg">
-                (Dashboard)
-              </span>
+              {t("dashboard.title")}
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              อัปเดตล่าสุด / Last updated: {timeStr} น.
+              {t("dashboard.lastUpdated", { time: timeStr })}
             </p>
           </div>
           <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm whitespace-nowrap">
-            ผู้ดูแลระบบ (Admin)
+            {t("dashboard.roleAdmin")}
           </span>
         </div>
 
         {loading ? (
           <div className="text-center py-20 text-gray-400 text-sm">
-            กำลังโหลดข้อมูล... / Loading...
+            {t("dashboard.loading")}
           </div>
         ) : (
           <>
             {/* ─── Summary Cards ─── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
               <SummaryCard
-                label="ยอดขายวันนี้"
-                sublabel="Today's Sales"
-                value={`฿${todaySales.toLocaleString()}`}
+                label={t("dashboard.todaySales")}
+                value={`฿${todaySales.toLocaleString(locale)}`}
                 color="text-blue-600"
               />
               <SummaryCard
-                label="จำนวนบิล"
-                sublabel="Bills Today"
+                label={t("dashboard.billsToday")}
                 value={String(todayBills)}
                 color="text-indigo-600"
               />
               <SummaryCard
-                label="กำไรวันนี้"
-                sublabel="Today's Profit"
-                value={`฿${todayProfit.toLocaleString()}`}
+                label={t("dashboard.todayProfit")}
+                value={`฿${todayProfit.toLocaleString(locale)}`}
                 color="text-emerald-500"
               />
               <SummaryCard
-                label="ยอดขายเดือนนี้"
-                sublabel="Monthly Sales"
-                value={`฿${monthSales.toLocaleString()}`}
+                label={t("dashboard.monthlySales")}
+                value={`฿${monthSales.toLocaleString(locale)}`}
                 color="text-blue-800"
               />
             </div>
@@ -346,17 +355,14 @@ export default function DashboardPage() {
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
                 <h2 className="text-base sm:text-lg font-bold flex flex-wrap items-center gap-1.5">
-                  📊 สถิติยอดขายและกำไรรายเดือน
-                  <span className="text-xs sm:text-sm font-normal text-gray-400">
-                    (Monthly)
-                  </span>
+                  {t("dashboard.monthlyChartTitle")}
                 </h2>
                 <div className="flex gap-3 p-2 bg-gray-50 rounded-lg self-start sm:self-auto">
                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> ยอดขาย/Sales
+                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> {t("dashboard.legendSales")}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> กำไร/Profit
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> {t("dashboard.legendProfit")}
                   </div>
                 </div>
               </div>
@@ -377,7 +383,7 @@ export default function DashboardPage() {
                             className="w-4 sm:w-8 md:w-10 bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 relative"
                           >
                             <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
-                              ฿{data.amount.toLocaleString()}
+                              ฿{data.amount.toLocaleString(locale)}
                             </span>
                           </div>
                           <div
@@ -385,12 +391,12 @@ export default function DashboardPage() {
                             className="w-4 sm:w-8 md:w-10 bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all duration-300 relative"
                           >
                             <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-emerald-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
-                              ฿{data.profit.toLocaleString()}
+                              ฿{data.profit.toLocaleString(locale)}
                             </span>
                           </div>
                         </div>
                         <span className="text-[10px] sm:text-xs font-bold text-gray-500 mt-2 tracking-tighter">
-                          {data.month}
+                          {t(data.monthKey)}
                         </span>
                       </div>
                     );
@@ -401,25 +407,22 @@ export default function DashboardPage() {
 
             {/* ─── Alert Panels ─── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-               
+
               {/* สินค้าใกล้หมดอายุ */}
               <div className="bg-red-50 border-t-4 border-red-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-red-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
                     <span>⚠️</span>
-                    <span>
-                      สินค้าใกล้หมดอายุ{" "}
-                      <span className="text-xs font-normal hidden sm:inline">(Expiring Soon)</span>
-                    </span>
+                    <span>{t("alerts.popupExpiring")}</span>
                   </h2>
                   <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shrink-0">
-                    {expiringProducts.length} รายการ
+                    {t("alerts.itemCount", { n: expiringProducts.length })}
                   </span>
                 </div>
 
                 {expiringProducts.length === 0 ? (
                   <p className="text-sm text-red-400 text-center py-4">
-                    ไม่มีสินค้าใกล้หมดอายุ / No products expiring soon
+                    {t("dashboard.noExpiring")}
                   </p>
                 ) : (
                   <div className="space-y-2.5">
@@ -431,7 +434,6 @@ export default function DashboardPage() {
                         percent
                       );
                       const alreadyApplied = item.special_price != null;
-                      
 
                       return (
                         <div
@@ -444,22 +446,24 @@ export default function DashboardPage() {
                                 {item.name}
                               </p>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                ล็อตนี้ {item.stock_qty} ชิ้น / This batch: {item.stock_qty} pcs
-                                {" · "}หมวดหมู่ / Category: {item.category}
-                                {" · "}อีก{" "}
+                                {t("dashboard.batchQty", { n: item.stock_qty })}
+                                {" · "}
+                                {t("dashboard.categoryLabel", { category: item.category })}
+                                {" · "}
+                                {t("dashboard.expiresPrefix")}{" "}
                                 <span className="font-bold text-red-600">
-                                  {item.daysLeft} วัน / {item.daysLeft}d left
+                                  {t("dashboard.daysLeft", { n: item.daysLeft })}
                                 </span>
                               </p>
                             </div>
                             <div className="shrink-0 self-start sm:self-auto">
                               {alreadyApplied ? (
                                 <span className="bg-green-100 text-green-700 border border-green-200 text-xs font-bold px-3 py-1.5 rounded-lg inline-block">
-                                  ✓ ราคาพิเศษ / Special Price ฿{item.special_price}
+                                  {t("dashboard.specialPrice", { price: item.special_price! })}
                                 </span>
                               ) : percent <= 0 ? (
                                 <span className="text-xs text-gray-400 italic">
-                                  หมวดหมู่นี้ยังไม่ตั้ง % ลดราคา / No discount % set for this category
+                                  {t("dashboard.noCategoryDiscount")}
                                 </span>
                               ) : (
                                 <button
@@ -471,8 +475,8 @@ export default function DashboardPage() {
                                   <span>฿{discountedPrice}</span>
                                   <span>
                                     {applyingId === item.id
-                                      ? "กำลังบันทึก... / Saving..."
-                                      : `ยืนยันลด ${percent}% / Confirm ${percent}% off`}
+                                      ? t("dashboard.saving")
+                                      : t("dashboard.confirmDiscount", { percent })}
                                   </span>
                                 </button>
                               )}
@@ -490,19 +494,16 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-orange-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
                     <span>📦</span>
-                    <span>
-                      สินค้าสต๊อกต่ำ{" "}
-                      <span className="text-xs font-normal hidden sm:inline">(Low Stock)</span>
-                    </span>
+                    <span>{t("alerts.popupLowStock")}</span>
                   </h2>
                   <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shrink-0">
-                    {lowStockProducts.length} รายการ
+                    {t("alerts.itemCount", { n: lowStockProducts.length })}
                   </span>
                 </div>
 
                 {lowStockProducts.length === 0 ? (
                   <p className="text-sm text-orange-400 text-center py-4">
-                    สต็อกสินค้าปกติทุกรายการ / All stock levels are normal
+                    {t("dashboard.stockNormal")}
                   </p>
                 ) : (
                   <>
@@ -511,11 +512,11 @@ export default function DashboardPage() {
                         onClick={selectAll}
                         className="text-xs text-orange-600 font-bold hover:underline"
                       >
-                        เลือกทั้งหมด / Select All
+                        {t("dashboard.selectAll")}
                       </button>
                       {selectedCount > 0 && (
                         <span className="text-xs text-orange-500 font-medium">
-                          เลือกแล้ว {selectedCount} รายการ / {selectedCount} selected
+                          {t("dashboard.selectedCount", { n: selectedCount })}
                         </span>
                       )}
                     </div>
@@ -548,17 +549,17 @@ export default function DashboardPage() {
                                 {item.name}
                               </p>
                               <p className="text-xs font-bold text-orange-600">
-                                เหลือ {item.stock_qty} ชิ้น / {item.stock_qty} left{" "}
+                                {t("dashboard.stockLeft", { n: item.stock_qty })}{" "}
                                 <span className="font-normal text-gray-400">
-                                  (ขั้นต่ำ / Min {item.min_stock} ·{" "}
+                                  ({t("dashboard.minStock", { n: item.min_stock })} ·{" "}
                                   {item.activeBatchCount === 0
-                                    ? "ไม่มีล็อตสำรอง / No backup lot"
-                                    : "เหลือล็อตเดียว / One lot left"}
+                                    ? t("dashboard.noBackupLot")
+                                    : t("dashboard.oneLotLeft")}
                                   )
                                 </span>
                               </p>
                               <p className={`text-xs font-semibold mt-0.5 ${getRestockAction(item.activeBatchCount).color}`}>
-                                 {getRestockAction(item.activeBatchCount).label}
+                                {t(getRestockAction(item.activeBatchCount).labelKey)}
                               </p>
                             </div>
                           </div>
@@ -575,14 +576,14 @@ export default function DashboardPage() {
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
-                      📋 สร้างใบสั่งซื้อ / Create purchase order ({selectedCount} รายการ / item)
+                      {t("dashboard.createPurchaseOrder", { n: selectedCount })}
                     </button>
                   </>
                 )}
               </div>
-              
+
             </div>
-            <AiInsights /> 
+            <AiInsights />
           </>
         )}
       </div>
@@ -593,12 +594,10 @@ export default function DashboardPage() {
 /* ── Helper Component ── */
 function SummaryCard({
   label,
-  sublabel,
   value,
   color,
 }: {
   label: string;
-  sublabel: string;
   value: string;
   color: string;
 }) {
@@ -606,7 +605,6 @@ function SummaryCard({
     <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
       <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide mb-1 leading-snug">
         {label}
-        <span className="hidden sm:inline"> / {sublabel}</span>
       </p>
       <p className={`text-lg sm:text-2xl font-black ${color} leading-tight`}>{value}</p>
     </div>

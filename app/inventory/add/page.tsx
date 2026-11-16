@@ -3,12 +3,19 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../../components/Navbar";
 import { supabase } from "../../lib/supabase";
+import { useI18n } from "../../lib/i18n";
+import { TKey } from "../../lib/dictionaries";
 
 interface Category {
   id: string;
   name: string;
   shelf_life_days: number | null;
 }
+
+type FieldError = {
+  key: TKey;
+  vars?: Record<string, string | number>;
+};
 
 // Formats a Date as YYYY-MM-DD for an <input type="date"> value
 function toDateInputValue(date: Date) {
@@ -19,6 +26,7 @@ function toDateInputValue(date: Date) {
 }
 
 export default function AddProductPage() {
+  const { t } = useI18n();
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -32,7 +40,7 @@ export default function AddProductPage() {
     expDate: "",
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, FieldError | undefined>>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -61,7 +69,7 @@ export default function AddProductPage() {
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" }));
+    setErrors((prev) => ({ ...prev, [name]: undefined }));
 
     if (name === "expDate") {
       setExpDateTouched(true);
@@ -89,15 +97,15 @@ export default function AddProductPage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setErrors({ ...errors, photo: "กรุณาเลือกไฟล์รูปภาพ / Please select an image file" });
+      setErrors({ ...errors, photo: { key: "addProduct.errPhotoType" } });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setErrors({ ...errors, photo: "ขนาดไฟล์ต้องไม่เกิน 5MB / File must be under 5MB" });
+      setErrors({ ...errors, photo: { key: "addProduct.errPhotoSize" } });
       return;
     }
 
-    setErrors({ ...errors, photo: "" });
+    setErrors({ ...errors, photo: undefined });
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
   };
@@ -108,19 +116,19 @@ export default function AddProductPage() {
   };
 
   const validate = () => {
-    const newErrors: Record<string, string> = {};
-    if (!form.name) newErrors.name = "กรุณากรอกชื่อสินค้า / Please enter product name";
-    if (!form.barcode) newErrors.barcode = "กรุณากรอกบาร์โค้ด / Please enter barcode";
+    const newErrors: Record<string, FieldError> = {};
+    if (!form.name) newErrors.name = { key: "addProduct.errNameRequired" };
+    if (!form.barcode) newErrors.barcode = { key: "addProduct.errBarcodeRequired" };
     if (!form.price || isNaN(Number(form.price)))
-      newErrors.price = "กรุณากรอกราคาขายให้ถูกต้อง / Invalid selling price";
+      newErrors.price = { key: "addProduct.errPriceInvalid" };
     if (!form.cost || isNaN(Number(form.cost)))
-      newErrors.cost = "กรุณากรอกราคาทุนให้ถูกต้อง / Invalid cost price";
+      newErrors.cost = { key: "addProduct.errCostInvalid" };
     if (!form.stock || isNaN(Number(form.stock)))
-      newErrors.stock = "กรุณากรอกจำนวน stock ให้ถูกต้อง / Invalid stock quantity";
+      newErrors.stock = { key: "addProduct.errStockInvalid" };
     if (!form.minStock || isNaN(Number(form.minStock)))
-      newErrors.minStock = "กรุณากรอกจำนวนขั้นต่ำให้ถูกต้อง / Invalid minimum stock";
-    if (!form.category) newErrors.category = "กรุณาเลือกหมวดหมู่ / Please select category";
-    if (!form.expDate) newErrors.expDate = "กรุณาเลือกวันหมดอายุ / Please select expiry date";
+      newErrors.minStock = { key: "addProduct.errMinStockInvalid" };
+    if (!form.category) newErrors.category = { key: "addProduct.errCategoryRequired" };
+    if (!form.expDate) newErrors.expDate = { key: "addProduct.errExpDateRequired" };
     return newErrors;
   };
 
@@ -149,7 +157,7 @@ export default function AddProductPage() {
       setUploading(false);
 
       if (uploadError) {
-        alert("อัปโหลดรูปไม่สำเร็จ / Photo upload failed: " + uploadError.message);
+        alert(t("addProduct.uploadFailed", { message: uploadError.message }));
         return;
       }
 
@@ -175,7 +183,7 @@ export default function AddProductPage() {
       .single();
 
     if (productError || !newProduct) {
-      alert("เกิดข้อผิดพลาด / Error: " + productError?.message);
+      alert(t("addProduct.saveError", { message: productError?.message ?? "" }));
       return;
     }
 
@@ -186,15 +194,12 @@ export default function AddProductPage() {
     });
 
     if (batchError) {
-      alert(
-        "บันทึกสินค้าแล้ว แต่เพิ่มสต็อกเริ่มต้นไม่สำเร็จ / Product saved, but adding initial stock failed: " +
-          batchError.message
-      );
+      alert(t("addProduct.batchSaveFailed", { message: batchError.message }));
       router.push("/inventory");
       return;
     }
 
-    alert(`บันทึกสินค้า "${form.name}" สำเร็จ! / Product saved successfully!`);
+    alert(t("addProduct.saveSuccess", { name: form.name }));
     router.push("/inventory");
   };
 
@@ -218,7 +223,7 @@ export default function AddProductPage() {
             ←
           </button>
           <h1 className="text-2xl font-bold text-gray-800">
-            เพิ่มสินค้าใหม่ <span className="text-gray-400 font-normal text-lg">(Add Product)</span>
+            {t("addProduct.title")}
           </h1>
         </div>
 
@@ -227,14 +232,14 @@ export default function AddProductPage() {
           {/* รูปสินค้า */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <h2 className="text-sm font-bold text-gray-600">
-              รูปสินค้า / Product Photo
+              {t("addProduct.photoSection")}
             </h2>
 
             {photoPreview ? (
               <div className="relative w-32 h-32">
                 <img
                   src={photoPreview}
-                  alt="Preview"
+                  alt={t("addProduct.photoPreviewAlt")}
                   className="w-32 h-32 object-cover rounded-lg border border-gray-200"
                 />
                 <button
@@ -248,7 +253,7 @@ export default function AddProductPage() {
             ) : (
               <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition text-gray-400 text-xs gap-1">
                 <span className="text-2xl">📷</span>
-                <span>เพิ่มรูป / Add Photo</span>
+                <span>{t("addProduct.addPhoto")}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -258,33 +263,37 @@ export default function AddProductPage() {
                 />
               </label>
             )}
-            {errors.photo && <p className="text-red-500 text-xs">{errors.photo}</p>}
+            {errors.photo && (
+              <p className="text-red-500 text-xs">{t(errors.photo.key, errors.photo.vars)}</p>
+            )}
           </div>
 
           {/* ข้อมูลทั่วไป */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">
-              ข้อมูลทั่วไป / General Info
+              {t("addProduct.generalInfoSection")}
             </h2>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                ชื่อสินค้า / Product Name <span className="text-red-500">*</span>
+                {t("addProduct.nameLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
-                placeholder="เช่น / e.g. น้ำเปล่าตราสิงห์ 600ml"
+                placeholder={t("addProduct.namePlaceholder")}
                 className={inputClass}
               />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.name.key, errors.name.vars)}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                บาร์โค้ด / Barcode <span className="text-red-500">*</span>
+                {t("addProduct.barcodeLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -292,15 +301,17 @@ export default function AddProductPage() {
                 name="barcode"
                 value={form.barcode}
                 onChange={handleChange}
-                placeholder="เช่น / e.g. 8850999000033"
+                placeholder={t("addProduct.barcodePlaceholder")}
                 className={inputClass}
               />
-              {errors.barcode && <p className="text-red-500 text-xs mt-1">{errors.barcode}</p>}
+              {errors.barcode && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.barcode.key, errors.barcode.vars)}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                หมวดหมู่ / Category <span className="text-red-500">*</span>
+                {t("addProduct.categoryLabel")} <span className="text-red-500">*</span>
               </label>
               <select
                 name="category"
@@ -310,20 +321,25 @@ export default function AddProductPage() {
                 className={`${inputClass} bg-white`}
               >
                 <option value="">
-                  {loadingCategories ? "กำลังโหลด... / Loading..." : "เลือกหมวดหมู่ / Select category"}
+                  {loadingCategories ? t("common.loading") : t("addProduct.selectCategory")}
                 </option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.name}>
-                    {cat.name}
-                    {cat.shelf_life_days != null ? ` (อายุ ${cat.shelf_life_days} วัน)` : ""}
+                    {cat.shelf_life_days != null
+                      ? t("addProduct.categoryShelfLife", {
+                          name: cat.name,
+                          days: cat.shelf_life_days,
+                        })
+                      : cat.name}
                   </option>
                 ))}
               </select>
-              {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
+              {errors.category && (
+                <p className="text-red-500 text-xs mt-1">{t(errors.category.key, errors.category.vars)}</p>
+              )}
               {categories.length === 0 && !loadingCategories && (
                 <p className="text-xs text-amber-600 mt-1">
-                  ยังไม่มีหมวดหมู่ในระบบ กรุณาไปเพิ่มที่หน้า "จัดการหมวดหมู่" ก่อน /
-                  No categories yet — add some on the Categories page first.
+                  {t("addProduct.noCategoriesHint")}
                 </p>
               )}
             </div>
@@ -331,13 +347,15 @@ export default function AddProductPage() {
 
           {/* ราคา */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">ราคา / Pricing</h2>
+            <h2 className="text-sm font-bold text-gray-600">
+              {t("addProduct.pricingSection")}
+            </h2>
 
             {/* 1 คอลัมน์บนมือถือ, 2 คอลัมน์ตั้งแต่ sm ขึ้นไป */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ราคาขาย / Selling Price (฿) <span className="text-red-500">*</span>
+                  {t("addProduct.priceLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -350,12 +368,14 @@ export default function AddProductPage() {
                   step="any"
                   className={inputClass}
                 />
-                {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+                {errors.price && (
+                  <p className="text-red-500 text-xs mt-1">{t(errors.price.key, errors.price.vars)}</p>
+                )}
               </div>
 
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ราคาทุน / Cost Price (฿) <span className="text-red-500">*</span>
+                  {t("addProduct.costLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -368,14 +388,18 @@ export default function AddProductPage() {
                   step="any"
                   className={inputClass}
                 />
-                {errors.cost && <p className="text-red-500 text-xs mt-1">{errors.cost}</p>}
+                {errors.cost && (
+                  <p className="text-red-500 text-xs mt-1">{t(errors.cost.key, errors.cost.vars)}</p>
+                )}
               </div>
             </div>
 
             {Number(form.price) > 0 && form.cost && (
               <div className="bg-green-50 rounded-lg px-4 py-2 text-sm">
                 <span className="text-green-700 font-medium">
-                  กำไรโดยประมาณ / Est. Profit: ฿{(Number(form.price) - Number(form.cost)).toFixed(2)}
+                  {t("addProduct.estProfit", {
+                    amount: (Number(form.price) - Number(form.cost)).toFixed(2),
+                  })}
                 </span>
                 <span className="text-green-500 ml-2">
                   ({(((Number(form.price) - Number(form.cost)) / Number(form.price)) * 100).toFixed(1)}%)
@@ -387,17 +411,16 @@ export default function AddProductPage() {
           {/* Stock */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-bold text-gray-600">
-              สต็อกเริ่มต้น / Initial Stock Batch
+              {t("addProduct.initialStockSection")}
             </h2>
             <p className="text-xs text-gray-400 -mt-2">
-              การรับสินค้าครั้งต่อไปให้ใช้ปุ่ม "รับสินค้า" ในหน้าคลังสินค้า /
-              Future shipments are added via the "Restock" button on the inventory page, not here.
+              {t("addProduct.initialStockHint")}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  จำนวนเริ่มต้น / Initial Stock <span className="text-red-500">*</span>
+                  {t("addProduct.initialStockLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -409,12 +432,14 @@ export default function AddProductPage() {
                   min="0"
                   className={inputClass}
                 />
-                {errors.stock && <p className="text-red-500 text-xs mt-1">{errors.stock}</p>}
+                {errors.stock && (
+                  <p className="text-red-500 text-xs mt-1">{t(errors.stock.key, errors.stock.vars)}</p>
+                )}
               </div>
 
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  จำนวนขั้นต่ำ / Minimum Stock <span className="text-red-500">*</span>
+                  {t("addProduct.minStockLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -426,7 +451,9 @@ export default function AddProductPage() {
                   min="0"
                   className={inputClass}
                 />
-                {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
+                {errors.minStock && (
+                  <p className="text-red-500 text-xs mt-1">{t(errors.minStock.key, errors.minStock.vars)}</p>
+                )}
               </div>
             </div>
           </div>
@@ -434,18 +461,18 @@ export default function AddProductPage() {
           {/* วันหมดอายุ — auto-calculated from category, still editable */}
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <h2 className="text-sm font-bold text-gray-600 mb-1">
-              วันหมดอายุของล็อตนี้ / This Batch's Expiry Date
+              {t("addProduct.expDateSection")}
             </h2>
             {selectedCategory?.shelf_life_days != null ? (
               <p className="text-xs text-gray-400 mb-3">
-                คำนวณอัตโนมัติจากหมวดหมู่ "{selectedCategory.name}" (อายุ {selectedCategory.shelf_life_days} วัน)
-                — แก้ไขได้หากวันที่จริงต่างจากนี้ /
-                Auto-calculated from the category's shelf life — adjust if the actual date differs.
+                {t("addProduct.autoExpiryHint", {
+                  category: selectedCategory.name,
+                  days: selectedCategory.shelf_life_days,
+                })}
               </p>
             ) : (
               <p className="text-xs text-gray-400 mb-3">
-                หมวดหมู่นี้ยังไม่กำหนดอายุสินค้า กรุณาเลือกวันหมดอายุเอง /
-                This category has no shelf life set — please pick the expiry date manually.
+                {t("addProduct.noShelfLifeHint")}
               </p>
             )}
             <input
@@ -455,7 +482,9 @@ export default function AddProductPage() {
               onChange={handleChange}
               className={inputClass}
             />
-            {errors.expDate && <p className="text-red-500 text-xs mt-1">{errors.expDate}</p>}
+            {errors.expDate && (
+              <p className="text-red-500 text-xs mt-1">{t(errors.expDate.key, errors.expDate.vars)}</p>
+            )}
           </div>
 
           {/* ปุ่ม */}
@@ -465,14 +494,14 @@ export default function AddProductPage() {
               onClick={() => router.push("/inventory")}
               className="flex-1 border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
             >
-              ยกเลิก / Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={uploading}
               className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {uploading ? "กำลังอัปโหลดรูป... / Uploading..." : "บันทึกสินค้า / Save Product"}
+              {uploading ? t("addProduct.uploading") : t("addProduct.saveProduct")}
             </button>
           </div>
 

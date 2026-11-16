@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
+import { useI18n } from "../lib/i18n";
 
 interface OrderItem {
   product_name: string;
@@ -19,6 +20,7 @@ interface Order {
 }
 
 export default function SalesHistoryPage() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,12 +78,12 @@ export default function SalesHistoryPage() {
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" });
+    return d.toLocaleDateString(locale, { timeZone: "Asia/Bangkok" });
   };
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleTimeString("th-TH", {
+    return d.toLocaleTimeString(locale, {
       hour: "2-digit",
       minute: "2-digit",
       timeZone: "Asia/Bangkok",
@@ -89,8 +91,8 @@ export default function SalesHistoryPage() {
   };
 
   const paymentLabel: Record<string, string> = {
-    cash: "เงินสด (Cash)",
-    transfer: "โอนเงิน / QR Code (Transfer)",
+    cash: t("history.paymentCash"),
+    transfer: t("history.paymentTransfer"),
   };
 
   return (
@@ -99,12 +101,12 @@ export default function SalesHistoryPage() {
       <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
 
         <h1 className="text-2xl font-bold text-gray-800">
-          ประวัติการขาย <span className="text-gray-400 font-normal text-lg">(Sales History)</span>
+          {t("history.title")}
         </h1>
 
         {loading ? (
           <div className="text-center py-20 text-gray-400">
-            กำลังโหลดข้อมูล... / Loading...
+            {t("common.loading")}
           </div>
         ) : (
           <>
@@ -112,8 +114,7 @@ export default function SalesHistoryPage() {
             {top5.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
                 <h2 className="text-lg font-bold text-gray-800 mb-4">
-                  🏆 Top 5 สินค้าขายดี
-                  <span className="text-sm font-normal text-gray-400 ml-2">(Best Selling Products)</span>
+                  {t("history.top5Title")}
                 </h2>
                 <div className="space-y-3">
                   {top5.map((product, index) => (
@@ -132,7 +133,7 @@ export default function SalesHistoryPage() {
                             {product.name}
                           </p>
                           <p className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                            {product.qty} ชิ้น / pcs
+                            {t("history.qtyUnit", { n: product.qty })}
                           </p>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-2">
@@ -159,12 +160,12 @@ export default function SalesHistoryPage() {
             {/* รายการ Order */}
             <div>
               <h2 className="text-lg font-bold text-gray-800 mb-3">
-                รายการทั้งหมด <span className="text-sm font-normal text-gray-400">(All Orders)</span>
+                {t("history.allOrdersTitle")}
               </h2>
 
               {orders.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
-                  ยังไม่มีรายการขาย / No orders yet
+                  {t("history.noOrders")}
                 </div>
               ) : (
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
@@ -192,7 +193,9 @@ export default function SalesHistoryPage() {
                               ฿{order.total_amount.toFixed(2)}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">
-                              {order.order_items.length} รายการ / items
+                              {order.order_items.length === 1
+                                ? t("history.itemCountOne", { n: order.order_items.length })
+                                : t("history.itemCount", { n: order.order_items.length })}
                             </p>
                           </div>
                           <span className="text-gray-300 text-lg">›</span>
