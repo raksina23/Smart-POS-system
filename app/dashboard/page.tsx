@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
-import { bkkDate, daysLeftFrom } from "../lib/dates";
+import { daysLeftFrom } from "../lib/dates";
 import AiInsights from "../components/AiInsights";
 import { useI18n } from "../lib/i18n";
 import { TKey } from "../lib/dictionaries";
@@ -119,7 +119,6 @@ export default function DashboardPage() {
 
     if (!error && data) {
       const mapped = data.map((b: any) => {
-        const exp = new Date(b.expiration_date);
         const daysLeft = daysLeftFrom(b.expiration_date);
         return {
           id: b.id,
@@ -312,7 +311,7 @@ export default function DashboardPage() {
             <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
               {t("dashboard.title")}
             </h1>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
               {t("dashboard.lastUpdated", { time: timeStr })}
             </p>
           </div>
@@ -342,7 +341,7 @@ export default function DashboardPage() {
               <SummaryCard
                 label={t("dashboard.todayProfit")}
                 value={`฿${todayProfit.toLocaleString(locale)}`}
-                color="text-emerald-500"
+                color="text-emerald-600"
               />
               <SummaryCard
                 label={t("dashboard.monthlySales")}
@@ -354,22 +353,24 @@ export default function DashboardPage() {
             {/* ─── Bar Chart ─── */}
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
-                <h2 className="text-base sm:text-lg font-bold flex flex-wrap items-center gap-1.5">
+                <h2 className="text-base sm:text-lg font-bold text-gray-800">
                   {t("dashboard.monthlyChartTitle")}
                 </h2>
-                <div className="flex gap-3 p-2 bg-gray-50 rounded-lg self-start sm:self-auto">
-                  <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> {t("dashboard.legendSales")}
+                <div className="flex gap-3 px-3 py-1.5 bg-gray-50 rounded-lg self-start sm:self-auto">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
+                    <span>{t("dashboard.legendSales")}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> {t("dashboard.legendProfit")}
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
+                    <span>{t("dashboard.legendProfit")}</span>
                   </div>
                 </div>
               </div>
 
               <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                 <div
-                  className="relative flex items-end justify-between gap-1 border-b-2 border-gray-100 h-56 sm:h-64 pb-7"
+                  className="relative flex items-end justify-between gap-1 border-b border-gray-100 h-56 sm:h-64 pb-7"
                   style={{ minWidth: "320px" }}
                 >
                   {monthlyData.map((data, index) => {
@@ -382,7 +383,7 @@ export default function DashboardPage() {
                             style={{ height: `${salesPct}%` }}
                             className="w-4 sm:w-8 md:w-10 bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 relative"
                           >
-                            <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
+                            <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] tabular-nums px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-md">
                               ฿{data.amount.toLocaleString(locale)}
                             </span>
                           </div>
@@ -390,12 +391,12 @@ export default function DashboardPage() {
                             style={{ height: `${profitPct}%` }}
                             className="w-4 sm:w-8 md:w-10 bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all duration-300 relative"
                           >
-                            <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-emerald-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl">
+                            <span className="hidden sm:block absolute -top-9 left-1/2 -translate-x-1/2 bg-emerald-900 text-white text-[10px] tabular-nums px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-md">
                               ฿{data.profit.toLocaleString(locale)}
                             </span>
                           </div>
                         </div>
-                        <span className="text-[10px] sm:text-xs font-bold text-gray-500 mt-2 tracking-tighter">
+                        <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mt-2">
                           {t(data.monthKey)}
                         </span>
                       </div>
@@ -409,13 +410,16 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
               {/* สินค้าใกล้หมดอายุ */}
-              <div className="bg-red-50 border-t-4 border-red-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
+              <div className="bg-red-50/70 border border-red-200/80 p-4 sm:p-5 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-red-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
-                    <span>⚠️</span>
+                  <h2 className="text-red-700 font-bold text-base sm:text-lg flex items-center gap-2">
+                    <svg className="w-5 h-5 text-red-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                     <span>{t("alerts.popupExpiring")}</span>
                   </h2>
-                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shrink-0">
+                  <span className="bg-red-500 text-white text-xs font-bold tabular-nums px-2.5 py-1 rounded-full shrink-0">
                     {t("alerts.itemCount", { n: expiringProducts.length })}
                   </span>
                 </div>
@@ -438,14 +442,14 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={item.id}
-                          className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-red-100"
+                          className="bg-white p-3 sm:p-4 rounded-xl border border-red-100"
                         >
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="font-bold text-gray-800 text-sm sm:text-base truncate">
                                 {item.name}
                               </p>
-                              <p className="text-xs text-gray-500 mt-0.5">
+                              <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
                                 {t("dashboard.batchQty", { n: item.stock_qty })}
                                 {" · "}
                                 {t("dashboard.categoryLabel", { category: item.category })}
@@ -458,7 +462,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="shrink-0 self-start sm:self-auto">
                               {alreadyApplied ? (
-                                <span className="bg-green-100 text-green-700 border border-green-200 text-xs font-bold px-3 py-1.5 rounded-lg inline-block">
+                                <span className="bg-green-100 text-green-700 border border-green-200 text-xs font-bold tabular-nums px-3 py-1.5 rounded-lg inline-block">
                                   {t("dashboard.specialPrice", { price: item.special_price! })}
                                 </span>
                               ) : percent <= 0 ? (
@@ -469,9 +473,9 @@ export default function DashboardPage() {
                                 <button
                                   onClick={() => handleApplyDiscount(item)}
                                   disabled={applyingId === item.id}
-                                  className="flex items-center gap-2 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-600 shadow-sm transition-all disabled:opacity-50"
+                                  className="flex items-center gap-2 bg-red-500 text-white text-xs font-bold tabular-nums px-3 py-1.5 rounded-lg hover:bg-red-600 transition-all disabled:opacity-50"
                                 >
-                                  <span className="line-through opacity-70">฿{item.price}</span>
+                                  <span className="line-through opacity-75">฿{item.price}</span>
                                   <span>฿{discountedPrice}</span>
                                   <span>
                                     {applyingId === item.id
@@ -490,13 +494,16 @@ export default function DashboardPage() {
               </div>
 
               {/* สินค้าสต็อกต่ำ */}
-              <div className="bg-orange-50 border-t-4 border-orange-500 p-4 sm:p-5 rounded-b-2xl shadow-sm">
+              <div className="bg-orange-50/70 border border-orange-200/80 p-4 sm:p-5 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-orange-700 font-bold text-base sm:text-lg flex items-center gap-1.5">
-                    <span>📦</span>
+                  <h2 className="text-orange-700 font-bold text-base sm:text-lg flex items-center gap-2">
+                    <svg className="w-5 h-5 text-orange-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" strokeLinejoin="round" />
+                      <path d="M3 8l9 5 9-5M12 13v8" strokeLinejoin="round" />
+                    </svg>
                     <span>{t("alerts.popupLowStock")}</span>
                   </h2>
-                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shrink-0">
+                  <span className="bg-orange-500 text-white text-xs font-bold tabular-nums px-2.5 py-1 rounded-full shrink-0">
                     {t("alerts.itemCount", { n: lowStockProducts.length })}
                   </span>
                 </div>
@@ -515,7 +522,7 @@ export default function DashboardPage() {
                         {t("dashboard.selectAll")}
                       </button>
                       {selectedCount > 0 && (
-                        <span className="text-xs text-orange-500 font-medium">
+                        <span className="text-xs text-orange-600 font-medium tabular-nums">
                           {t("dashboard.selectedCount", { n: selectedCount })}
                         </span>
                       )}
@@ -526,7 +533,7 @@ export default function DashboardPage() {
                         <div
                           key={item.id}
                           onClick={() => toggleSelect(item.id)}
-                          className={`bg-white p-3 sm:p-4 rounded-xl shadow-sm border cursor-pointer transition-all ${
+                          className={`bg-white p-3 sm:p-4 rounded-xl border cursor-pointer transition-all ${
                             selectedItems[item.id]
                               ? "border-orange-400 ring-2 ring-orange-200"
                               : "border-orange-100 hover:border-orange-300"
@@ -541,14 +548,16 @@ export default function DashboardPage() {
                               }`}
                             >
                               {selectedItems[item.id] && (
-                                <span className="text-white text-xs font-bold">✓</span>
+                                <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4">
+                                  <path d="M3.5 8.5L6.5 11.5L12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
                               )}
                             </div>
                             <div className="min-w-0">
                               <p className="font-bold text-gray-800 text-sm sm:text-base truncate">
                                 {item.name}
                               </p>
-                              <p className="text-xs font-bold text-orange-600">
+                              <p className="text-xs font-bold text-orange-600 tabular-nums">
                                 {t("dashboard.stockLeft", { n: item.stock_qty })}{" "}
                                 <span className="font-normal text-gray-400">
                                   ({t("dashboard.minStock", { n: item.min_stock })} ·{" "}
@@ -570,10 +579,10 @@ export default function DashboardPage() {
                     <button
                       onClick={handleCreatePurchaseOrder}
                       disabled={selectedCount === 0}
-                      className={`w-full mt-4 font-bold py-3 rounded-xl text-sm transition ${
+                      className={`w-full mt-4 font-bold py-3 rounded-xl text-sm tabular-nums transition ${
                         selectedCount > 0
-                          ? "bg-orange-500 text-white hover:bg-orange-600 active:scale-95"
-                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          ? "bg-orange-500 text-white hover:bg-orange-600 active:scale-[0.99]"
+                          : "bg-white/70 text-gray-400 border border-gray-200 cursor-not-allowed"
                       }`}
                     >
                       {t("dashboard.createPurchaseOrder", { n: selectedCount })}
@@ -606,7 +615,9 @@ function SummaryCard({
       <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide mb-1 leading-snug">
         {label}
       </p>
-      <p className={`text-lg sm:text-2xl font-black ${color} leading-tight`}>{value}</p>
+      <p className={`text-lg sm:text-2xl font-bold tabular-nums ${color} leading-tight`}>
+        {value}
+      </p>
     </div>
   );
 }

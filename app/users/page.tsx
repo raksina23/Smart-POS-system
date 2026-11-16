@@ -129,14 +129,18 @@ export default function UserManagementPage() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <span className="bg-gray-100 text-gray-500 text-xs px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap">
+            <span className="bg-gray-100 text-gray-600 text-xs px-2.5 py-1.5 rounded-lg font-medium tabular-nums whitespace-nowrap">
               {users.length === 1
                 ? t("users.userCountOne", { n: users.length })
                 : t("users.userCount", { n: users.length })}
             </span>
             <button
               onClick={() => { setShowForm(!showForm); setErrors({}); setShowPassword(false); }}
-              className="bg-blue-600 text-white px-3.5 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition whitespace-nowrap"
+              className={`px-3.5 py-2 rounded-xl text-sm font-bold transition whitespace-nowrap ${
+                showForm
+                  ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  : "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+              }`}
             >
               {showForm ? t("users.cancelAdd") : t("users.addUser")}
             </button>
@@ -150,7 +154,6 @@ export default function UserManagementPage() {
               {t("users.formTitle")}
             </h2>
             <form onSubmit={handleAddUser} className="space-y-3">
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">
                   Email <span className="text-red-500">*</span>
@@ -163,14 +166,13 @@ export default function UserManagementPage() {
                     setForm({ ...form, email: e.target.value });
                     setErrors({ ...errors, email: undefined });
                   }}
-                  className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 />
                 {errors.email && (
                   <p className="text-red-500 text-xs mt-1">{t(errors.email)}</p>
                 )}
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">
                   Password <span className="text-red-500">*</span>
@@ -184,7 +186,7 @@ export default function UserManagementPage() {
                       setForm({ ...form, password: e.target.value });
                       setErrors({ ...errors, password: undefined });
                     }}
-                    className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm pr-16"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm pr-16"
                   />
                   <button
                     type="button"
@@ -199,7 +201,6 @@ export default function UserManagementPage() {
                 )}
               </div>
 
-              {/* Role */}
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">
                   Role
@@ -207,14 +208,13 @@ export default function UserManagementPage() {
                 <select
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="w-full sm:w-48 px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+                  className="w-full sm:w-48 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
                 >
                   <option value="cashier">Cashier</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
 
-              {/* Buttons */}
               <div className="flex gap-2 pt-1">
                 <button
                   type="submit"
@@ -238,12 +238,10 @@ export default function UserManagementPage() {
         {/* User List */}
         {loading ? (
           <div className="text-center py-16 text-gray-400 text-sm">
-            <div className="text-3xl mb-2">⏳</div>
             {t("common.loading")}
           </div>
         ) : users.length === 0 ? (
           <div className="text-center py-16 text-gray-400 text-sm">
-            <div className="text-3xl mb-2">👤</div>
             {t("users.empty")}
           </div>
         ) : (
@@ -279,21 +277,21 @@ export default function UserManagementPage() {
                             {user.role === "admin" ? "Admin" : "Cashier"}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">
+                        <p className="text-xs text-gray-400 font-mono tabular-nums mt-0.5">
                           ID: {user.id.slice(0, 8)}...
                         </p>
                       </div>
                     </div>
 
-                    {/* Row 2: Action buttons */}
-                    <div className="flex gap-2 mt-3 pl-13">
+                    {/* Row 2: Action buttons (เยื้อง 52px ให้ตรงแนวกับอีเมลด้านบน) */}
+                    <div className="flex gap-2 mt-3 pl-[52px]">
                       <button
                         onClick={() => handleChangeRole(user.id, user.role)}
                         disabled={isOnlyAdmin}
                         className={`flex-1 py-2 rounded-xl text-xs font-medium border transition ${
                           isOnlyAdmin
                             ? "text-gray-300 border-gray-100 cursor-not-allowed bg-gray-50"
-                            : "text-blue-500 border-blue-200 hover:bg-blue-50 active:bg-blue-100"
+                            : "text-blue-600 border-blue-200 hover:bg-blue-50 active:bg-blue-100"
                         }`}
                       >
                         {t("users.changeRole")}
@@ -304,7 +302,7 @@ export default function UserManagementPage() {
                         className={`flex-1 py-2 rounded-xl text-xs font-medium border transition ${
                           isOnlyAdmin
                             ? "text-gray-300 border-gray-100 cursor-not-allowed bg-gray-50"
-                            : "text-red-500 border-red-200 hover:bg-red-50 active:bg-red-100"
+                            : "text-red-600 border-red-200 hover:bg-red-50 active:bg-red-100"
                         }`}
                       >
                         {t("users.deleteUser")}

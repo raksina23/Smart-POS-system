@@ -17,14 +17,6 @@ interface CartItem {
 type PaymentMethod = "cash" | "transfer" | null;
 type PaymentStatus = "pending" | "saving" | "paid";
 
-/**
- * Deducts `qtyToDeduct` units of a product from its stock_batches,
- * taking from the batch with the SOONEST expiration date first (FEFO —
- * First Expired, First Out). If that batch doesn't have enough, the
- * remainder spills over into the next-soonest batch, and so on.
- * Batches with no expiration_date are treated as "never expires" and
- * are only used last, after every dated batch is exhausted.
- */
 async function deductStockFEFO(productId: string, qtyToDeduct: number) {
   const { data: batches, error } = await supabase
     .from("stock_batches")
@@ -58,11 +50,6 @@ async function deductStockFEFO(productId: string, qtyToDeduct: number) {
   }
 
   if (remaining > 0) {
-    // Every batch was exhausted but there still wasn't enough stock —
-    // this shouldn't normally happen since POS checks stock before
-    // checkout, but could occur from a race condition (two sales at
-    // once). We don't block the sale here, but this is worth logging
-    // and reviewing rather than silently ignoring.
     console.warn(
       `สต็อกไม่พอสำหรับสินค้า ${productId}: ขาดอีก ${remaining} ชิ้น`
     );
@@ -75,7 +62,6 @@ export default function ReceiptPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [total, setTotal] = useState(0);
   const [cashReceived, setCashReceived] = useState("");
-  const [change, setChange] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("pending");
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -89,34 +75,34 @@ export default function ReceiptPage() {
     setNow(new Date());
   }, []);
 
-  const handleCalculateChange = () => {
-    const received = parseFloat(cashReceived);
-    if (isNaN(received) || received < total) {
-      alert(t("receipt.insufficientAmount"));
-      return;
-    }
-    setChange(received - total);
-  };
+  // คำนวณเงินทอนทันทีที่พิมพ์ ไม่ต้องกดปุ่มคำนวณเพิ่ม และการ์ดไม่กระตุกขึ้นลง
+  const parsedReceived = parseFloat(cashReceived);
+  const hasCashInput = cashReceived.trim() !== "" && !isNaN(parsedReceived);
+  const isCashEnough = hasCashInput && parsedReceived >= total;
+  const change = isCashEnough ? parsedReceived - total : null;
+
+  const canConfirm =
+    paymentMethod === "transfer" ||
+    (paymentMethod === "cash" && isCashEnough);
 
   const handleConfirmPayment = async () => {
     if (!paymentMethod) {
       alert(t("receipt.selectPaymentFirst"));
       return;
     }
-    if (paymentMethod === "cash" && change === null) {
-      alert(t("receipt.calculateChangeFirst"));
+    if (paymentMethod === "cash" && !isCashEnough) {
+      alert(t("receipt.insufficientAmount"));
       return;
     }
 
     setPaymentStatus("saving");
 
     try {
-      // 1. บันทึก orders
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           total_amount: total,
-          cash_received: paymentMethod === "cash" ? parseFloat(cashReceived) : total,
+          cash_received: paymentMethod === "cash" ? parsedReceived : total,
           change: paymentMethod === "cash" ? (change ?? 0) : 0,
           payment_type: paymentMethod,
         })
@@ -129,7 +115,6 @@ export default function ReceiptPage() {
         return;
       }
 
-      // 2. บันทึก order_items
       const orderItems = cart.map((item) => ({
         order_id: order.id,
         product_id: item.id,
@@ -149,18 +134,14 @@ export default function ReceiptPage() {
         return;
       }
 
-      // 3. ตัดสต็อกแบบ FEFO (First Expired, First Out) — หักจากล็อตที่หมดอายุ
-      // เร็วที่สุดก่อน แทนที่จะลด stock_qty ตรงๆ บน products (ไม่มีคอลัมน์นี้แล้ว)
       for (const item of cart) {
         await deductStockFEFO(item.id, item.qty);
       }
 
-      // 4. สำเร็จ
       setOrderId(order.id);
       setPaymentStatus("paid");
       localStorage.removeItem("cart");
       localStorage.removeItem("totalPrice");
-
     } catch (err) {
       console.error(err);
       alert(t("receipt.unexpectedError"));
@@ -197,50 +178,44 @@ export default function ReceiptPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 max-w-sm w-full p-6">
 
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-blue-600">Smart POS</h1>
-          <p className="text-gray-500 text-sm">{t("receipt.subtitle")}</p>
-          <div className="mt-3 text-xs text-gray-400 space-y-1">
+        {/* Header: ลดขนาดชื่อร้านให้พอดี เพื่อไม่ให้แย่งสายตาจากยอดรวม */}
+        <div className="text-center mb-5">
+          <h1 className="text-lg font-bold text-gray-800">Smart POS</h1>
+          <p className="text-gray-400 text-xs mt-0.5">{t("receipt.subtitle")}</p>
+          <div className="mt-2 text-xs text-gray-400 tabular-nums space-y-0.5">
             <p>{t("receipt.dateTime", { date: dateStr, time: timeStr })}</p>
             {orderId && (
-              <p className="text-gray-300">#{orderId.slice(0, 8).toUpperCase()}</p>
+              <p className="font-mono text-gray-400">
+                #{orderId.slice(0, 8).toUpperCase()}
+              </p>
             )}
           </div>
 
-          {/* Payment Status Badge */}
-          <div className="mt-3">
-            {paymentStatus === "paid" ? (
-              <span className="bg-green-100 text-green-700 text-sm font-bold px-4 py-1.5 rounded-full">
+          {/* แสดงป้ายสถานะเฉพาะตอนจ่ายเงินสำเร็จแล้ว ลดป้ายเหลืองที่เกินจำเป็น */}
+          {paymentStatus === "paid" && (
+            <div className="mt-3">
+              <span className="inline-block bg-green-100 text-green-700 text-xs font-bold px-3.5 py-1.5 rounded-full">
                 {t("receipt.statusPaid", { method: paymentLabels[paymentMethod!] })}
               </span>
-            ) : paymentStatus === "saving" ? (
-              <span className="bg-blue-100 text-blue-700 text-sm font-bold px-4 py-1.5 rounded-full">
-                {t("receipt.statusSaving")}
-              </span>
-            ) : (
-              <span className="bg-yellow-100 text-yellow-700 text-sm font-bold px-4 py-1.5 rounded-full">
-                {t("receipt.statusPending")}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* รายการสินค้า */}
-        <div className="border-t border-dashed border-gray-300 pt-4 mb-4">
+        <div className="border-t border-dashed border-gray-200 py-4">
           {cart.length === 0 ? (
             <p className="text-center text-gray-400 text-sm">{t("receipt.noItems")}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5 max-h-56 overflow-y-auto">
               {cart.map((item) => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <div>
-                    <p className="text-gray-800">{item.name}</p>
-                    <p className="text-gray-400">
+                <div key={item.id} className="flex justify-between items-baseline gap-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-gray-800 truncate">{item.name}</p>
+                    <p className="text-gray-400 text-xs tabular-nums">
                       ฿{item.price.toFixed(2)} x {item.qty}
                     </p>
                   </div>
-                  <p className="font-medium text-gray-800">
+                  <p className="font-medium text-gray-800 tabular-nums shrink-0">
                     ฿{(item.price * item.qty).toFixed(2)}
                   </p>
                 </div>
@@ -249,20 +224,21 @@ export default function ReceiptPage() {
           )}
         </div>
 
-        {/* ยอดรวม */}
-        <div className="border-t border-dashed border-gray-300 pt-4">
-          <div className="flex justify-between font-bold text-lg">
-            <span>{t("receipt.total")}</span>
-            <span className="text-blue-600">฿{total.toFixed(2)}</span>
+        {/* ยอดรวม: ทำให้เป็นจุดเด่นที่สุดบนใบเสร็จ */}
+        <div className="border-t border-dashed border-gray-200 pt-4">
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm font-medium text-gray-600">{t("receipt.total")}</span>
+            <span className="text-2xl font-bold text-blue-600 tabular-nums">
+              ฿{total.toFixed(2)}
+            </span>
           </div>
         </div>
 
         {/* ส่วนชำระเงิน */}
-        {paymentStatus === "pending" && (
-          <div className="mt-4 space-y-4">
-
+        {paymentStatus !== "paid" && (
+          <div className="mt-5 space-y-4">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-2">
+              <p className="text-xs font-medium text-gray-500 mb-2">
                 {t("receipt.selectPaymentMethod")}
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -272,12 +248,13 @@ export default function ReceiptPage() {
                 ].map((method) => (
                   <button
                     key={method.key}
+                    type="button"
+                    disabled={paymentStatus === "saving"}
                     onClick={() => {
                       setPaymentMethod(method.key as PaymentMethod);
                       setCashReceived("");
-                      setChange(null);
                     }}
-                    className={`py-2.5 rounded-xl text-sm font-medium border transition ${
+                    className={`py-2.5 px-3 rounded-xl text-sm font-medium border transition ${
                       paymentMethod === method.key
                         ? "bg-blue-600 text-white border-blue-600"
                         : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -290,98 +267,106 @@ export default function ReceiptPage() {
             </div>
 
             {paymentMethod === "cash" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 block">
+              <div className="space-y-2.5">
+                <label className="text-xs font-medium text-gray-500 block">
                   {t("receipt.cashReceivedLabel")}
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    placeholder={t("receipt.enterAmountPlaceholder")}
-                    value={cashReceived}
-                    onChange={(e) => {
-                      setCashReceived(e.target.value);
-                      setChange(null);
-                    }}
-                  />
-                  <button
-                    onClick={handleCalculateChange}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-                  >
-                    {t("receipt.calculate")}
-                  </button>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  disabled={paymentStatus === "saving"}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-right font-semibold text-base tabular-nums focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder={t("receipt.enterAmountPlaceholder")}
+                  value={cashReceived}
+                  onChange={(e) => setCashReceived(e.target.value)}
+                />
+
+                {/* แสดงสถานะเงินทอนตลอดเวลาในความสูงคงที่ การ์ดไม่กระตุก */}
+                <div
+                  className={`flex justify-between items-center text-sm px-4 py-2.5 rounded-xl tabular-nums ${
+                    isCashEnough
+                      ? "bg-green-50 text-green-700 font-semibold"
+                      : hasCashInput
+                      ? "bg-red-50 text-red-600 font-medium"
+                      : "bg-gray-50 text-gray-400"
+                  }`}
+                >
+                  <span>
+                    {hasCashInput && !isCashEnough
+                      ? t("receipt.insufficientAmount")
+                      : t("receipt.change")}
+                  </span>
+                  <span className="font-bold">
+                    ฿{(change ?? 0).toFixed(2)}
+                  </span>
                 </div>
-                {change !== null && (
-                  <div className="flex justify-between font-medium text-green-600 bg-green-50 px-4 py-2 rounded-lg">
-                    <span>{t("receipt.change")}</span>
-                    <span>฿{change.toFixed(2)}</span>
-                  </div>
-                )}
               </div>
             )}
 
             {paymentMethod === "transfer" && (
-              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 space-y-3">
-                <p className="font-bold">{t("receipt.paymentDetailsTitle")}</p>
-                <div className="space-y-1">
-                  <p className="font-medium text-blue-800">{t("receipt.bankTransferHeader")}</p>
+              <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 space-y-2">
+                <p className="font-semibold text-xs text-blue-600">
+                  {t("receipt.paymentDetailsTitle")}
+                </p>
+                <div className="space-y-0.5 text-xs text-blue-900">
                   <p>{t("receipt.bankName")}</p>
-                  <p>{t("receipt.accountNo")}</p>
+                  <p className="font-mono font-semibold text-sm">123-4-56789-0</p>
                   <p>{t("receipt.accountName")}</p>
                 </div>
-                <p className="font-bold text-blue-800 text-center">
+                <p className="font-bold text-blue-700 pt-1 border-t border-blue-100 tabular-nums">
                   {t("receipt.amountDue", { amount: total.toFixed(2) })}
                 </p>
               </div>
             )}
 
-            <button
-              onClick={handleConfirmPayment}
-              disabled={!paymentMethod}
-              className={`w-full font-bold py-3 rounded-xl text-lg transition ${
-                paymentMethod
-                  ? "bg-green-500 hover:bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              {t("receipt.confirmPayment")}
-            </button>
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={handleConfirmPayment}
+                disabled={!canConfirm || paymentStatus === "saving"}
+                className={`w-full font-bold py-3 rounded-xl text-base transition ${
+                  canConfirm && paymentStatus !== "saving"
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                }`}
+              >
+                {paymentStatus === "saving"
+                  ? t("receipt.statusSaving")
+                  : t("receipt.confirmPayment")}
+              </button>
 
-            <button
-              onClick={handleCancelOrder}
-              className="w-full border border-gray-300 text-gray-500 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition text-sm"
-            >
-              {t("receipt.cancelOrder")}
-            </button>
-          </div>
-        )}
-
-        {/* กำลังบันทึก */}
-        {paymentStatus === "saving" && (
-          <div className="mt-6 text-center text-blue-500 font-medium text-sm py-4">
-            {t("receipt.savingData")}
+              <button
+                type="button"
+                onClick={handleCancelOrder}
+                disabled={paymentStatus === "saving"}
+                className="w-full text-gray-400 hover:text-gray-600 font-medium py-2 rounded-xl transition text-xs"
+              >
+                {t("receipt.cancelOrder")}
+              </button>
+            </div>
           </div>
         )}
 
         {/* หลังจ่ายเงินแล้ว */}
         {paymentStatus === "paid" && (
           <div className="mt-4 space-y-3">
-            <div className="bg-green-50 rounded-xl p-4 text-sm space-y-1">
-              <div className="flex justify-between text-green-700">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 tabular-nums">
+              <div className="flex justify-between text-gray-600">
                 <span>{t("receipt.paymentMethodSummary")}</span>
-                <span className="font-bold">{paymentLabels[paymentMethod!]}</span>
+                <span className="font-semibold text-gray-800">
+                  {paymentLabels[paymentMethod!]}
+                </span>
               </div>
               {paymentMethod === "cash" && change !== null && (
                 <>
-                  <div className="flex justify-between text-green-700">
+                  <div className="flex justify-between text-gray-600">
                     <span>{t("receipt.receivedSummary")}</span>
-                    <span className="font-bold">
-                      ฿{parseFloat(cashReceived).toFixed(2)}
+                    <span className="font-semibold text-gray-800">
+                      ฿{parsedReceived.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-green-700">
-                    <span>{t("receipt.change")}</span>
+                  <div className="flex justify-between text-green-700 pt-1 border-t border-gray-200/70">
+                    <span className="font-medium">{t("receipt.change")}</span>
                     <span className="font-bold">฿{change.toFixed(2)}</span>
                   </div>
                 </>
@@ -389,15 +374,16 @@ export default function ReceiptPage() {
             </div>
 
             <button
+              type="button"
               onClick={handleSellMore}
-              className="w-full border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition"
             >
               {t("receipt.sellMore")}
             </button>
           </div>
         )}
 
-        <p className="text-center text-xs text-gray-400 mt-4">
+        <p className="text-center text-xs text-gray-400 mt-5">
           {t("receipt.thankYou")}
         </p>
       </div>

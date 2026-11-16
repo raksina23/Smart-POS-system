@@ -95,7 +95,6 @@ export default function OrderDetailPage() {
     timeZone: "Asia/Bangkok",
   });
 
-  // คำนวณกำไรรวมของบิลนี้
   const totalProfit = order.order_items.reduce(
     (sum, item) => sum + (item.price_sold - item.cost_sold) * item.quantity,
     0
@@ -109,10 +108,13 @@ export default function OrderDetailPage() {
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button
+            type="button"
             onClick={() => router.push("/history")}
-            className="text-gray-400 hover:text-gray-600 transition text-xl"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition"
           >
-            ←
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M12.5 15L7.5 10L12.5 5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           <h1 className="text-2xl font-bold text-gray-800">
             {t("orderDetail.title")}
@@ -120,34 +122,37 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Order Info */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4 space-y-2">
+        <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4 space-y-3">
           <div className="flex justify-between items-center">
-            <p className="text-base font-bold text-gray-800">
+            <p className="text-base font-bold font-mono text-gray-800">
               #{order.id.slice(0, 8).toUpperCase()}
             </p>
-            <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               {t("orderDetail.statusPaid")}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-3 text-sm pt-3 border-t border-gray-100 tabular-nums">
             <div>
               <p className="text-xs text-gray-400">{t("orderDetail.dateLabel")}</p>
-              <p className="font-medium text-gray-700">{dateStr}</p>
+              <p className="font-medium text-gray-700 mt-0.5">{dateStr}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400">{t("orderDetail.timeLabel")}</p>
-              <p className="font-medium text-gray-700">{timeStr}</p>
+              <p className="font-medium text-gray-700 mt-0.5">{timeStr}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400">{t("orderDetail.paymentMethodLabel")}</p>
-              <p className="font-medium text-gray-700">
+              <p className="font-medium text-gray-700 mt-0.5">
                 {paymentLabel[order.payment_type] ?? order.payment_type}
               </p>
             </div>
             {order.payment_type === "cash" && (
               <div>
                 <p className="text-xs text-gray-400">{t("orderDetail.changeLabel")}</p>
-                <p className="font-medium text-gray-700">
+                <p className="font-medium text-gray-700 mt-0.5">
                   ฿{order.change.toFixed(2)}
                 </p>
               </div>
@@ -166,15 +171,15 @@ export default function OrderDetailPage() {
             {order.order_items.map((item) => (
               <div
                 key={item.id}
-                className="flex justify-between items-center text-sm py-2 border-b border-gray-50 last:border-0"
+                className="flex justify-between items-baseline text-sm py-2 border-b border-gray-50 last:border-0"
               >
                 <div>
                   <p className="font-medium text-gray-800">{item.product_name}</p>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-gray-400 text-xs tabular-nums">
                     ฿{item.price_sold.toFixed(2)} x {item.quantity}
                   </p>
                 </div>
-                <p className="font-bold text-gray-800">
+                <p className="font-bold text-gray-800 tabular-nums">
                   ฿{(item.price_sold * item.quantity).toFixed(2)}
                 </p>
               </div>
@@ -183,20 +188,20 @@ export default function OrderDetailPage() {
         </div>
 
         {/* ยอดรวม + กำไร */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6 space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-base font-medium text-gray-600">
+        <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6 space-y-2.5 tabular-nums">
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm font-medium text-gray-600">
               {t("orderDetail.totalSales")}
             </span>
             <span className="text-xl font-bold text-blue-600">
               ฿{order.total_amount.toFixed(2)}
             </span>
           </div>
-          <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-            <span className="text-base font-medium text-gray-600">
+          <div className="flex justify-between items-baseline pt-2.5 border-t border-gray-100">
+            <span className="text-sm font-medium text-gray-600">
               {t("orderDetail.profit")}
             </span>
-            <span className="text-xl font-bold text-emerald-500">
+            <span className="text-lg font-bold text-emerald-600">
               ฿{totalProfit.toFixed(2)}
             </span>
           </div>
@@ -204,9 +209,6 @@ export default function OrderDetailPage() {
 
         {/* ปุ่ม */}
         <div className="space-y-3">
-          {/* <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
-            🖨️ พิมพ์ใบเสร็จ / Print Receipt
-          </button> */}
           <button
             onClick={() => router.push("/history")}
             className="w-full border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"

@@ -113,13 +113,13 @@ export default function SalesHistoryPage() {
             {/* Top 5 */}
             {top5.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">
+                <h2 className="text-base font-bold text-gray-800 mb-4">
                   {t("history.top5Title")}
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-3.5">
                   {top5.map((product, index) => (
                     <div key={product.name} className="flex items-center gap-3">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold tabular-nums flex-shrink-0 ${
                         index === 0 ? "bg-amber-100 text-amber-700" :
                         index === 1 ? "bg-gray-100 text-gray-600" :
                         index === 2 ? "bg-orange-100 text-orange-700" :
@@ -128,11 +128,11 @@ export default function SalesHistoryPage() {
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center mb-1">
+                        <div className="flex justify-between items-center mb-1.5">
                           <p className="text-sm font-medium text-gray-800 truncate">
                             {product.name}
                           </p>
-                          <p className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                          <p className="text-xs text-gray-500 tabular-nums flex-shrink-0 ml-2">
                             {t("history.qtyUnit", { n: product.qty })}
                           </p>
                         </div>
@@ -148,7 +148,7 @@ export default function SalesHistoryPage() {
                           />
                         </div>
                       </div>
-                      <p className="text-sm font-bold text-blue-600 flex-shrink-0">
+                      <p className="text-sm font-bold text-blue-600 tabular-nums flex-shrink-0 w-20 text-right">
                         ฿{product.revenue.toFixed(0)}
                       </p>
                     </div>
@@ -159,7 +159,7 @@ export default function SalesHistoryPage() {
 
             {/* รายการ Order */}
             <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-3">
+              <h2 className="text-base font-bold text-gray-800 mb-3">
                 {t("history.allOrdersTitle")}
               </h2>
 
@@ -177,28 +177,30 @@ export default function SalesHistoryPage() {
                         className="p-4 flex justify-between items-center hover:bg-gray-50 cursor-pointer gap-2 active:bg-gray-100 transition"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-800">
+                          <p className="font-bold text-gray-800 font-mono text-sm">
                             #{order.id.slice(0, 8).toUpperCase()}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-500 tabular-nums mt-1">
                             {formatDate(order.created_at)} • {formatTime(order.created_at)}
                           </p>
-                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full mt-1 inline-block">
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full mt-1.5 inline-block">
                             {paymentLabel[order.payment_type] ?? order.payment_type}
                           </span>
                         </div>
-                        <div className="text-right flex-shrink-0 flex items-center gap-2">
-                          <div>
+                        <div className="text-right flex-shrink-0 flex items-center gap-3">
+                          <div className="tabular-nums">
                             <p className="font-bold text-blue-600 text-lg">
                               ฿{order.total_amount.toFixed(2)}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-400 mt-0.5">
                               {order.order_items.length === 1
                                 ? t("history.itemCountOne", { n: order.order_items.length })
                                 : t("history.itemCount", { n: order.order_items.length })}
                             </p>
                           </div>
-                          <span className="text-gray-300 text-lg">›</span>
+                          <svg className="w-4 h-4 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="M6 3.5L10.5 8L6 12.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         </div>
                       </div>
                     ))}

@@ -5,43 +5,88 @@ import {
   IScannerControls,
 } from "@zxing/browser";
 import { DecodeHintType, BarcodeFormat, NotFoundException } from "@zxing/library";
+import { useI18n } from "../lib/i18n";
 
 interface BarcodeScannerProps {
   onScan: (decodedText: string) => void;
   cooldownMs?: number;
 }
 
-function describeCameraError(err: unknown): string {
+function describeCameraError(err: unknown, isEn: boolean): string {
   const message = err instanceof Error ? err.message : String(err);
   const name = err instanceof Error ? err.name : "";
 
   if (typeof window !== "undefined" && !window.isSecureContext) {
-    return "ต้องเปิดผ่าน HTTPS หรือ localhost เท่านั้น / Camera requires HTTPS or localhost.";
+    return isEn
+      ? "Camera requires HTTPS or localhost."
+      : "ต้องเปิดผ่าน HTTPS หรือ localhost เท่านั้น";
   }
   if (name === "NotAllowedError" || message.includes("Permission")) {
-    return "ไม่ได้รับอนุญาตให้ใช้กล้อง / Camera permission was denied.";
+    return isEn
+      ? "Camera permission was denied."
+      : "ไม่ได้รับอนุญาตให้ใช้กล้อง";
   }
   if (name === "NotFoundError" || message.includes("Requested device not found")) {
-    return "ไม่พบกล้องบนอุปกรณ์นี้ / No camera was found on this device.";
+    return isEn
+      ? "No camera was found on this device."
+      : "ไม่พบกล้องบนอุปกรณ์นี้";
   }
   if (name === "NotReadableError") {
-    return "กล้องถูกใช้งานโดยแอปอื่นอยู่ / The camera is already in use by another app or tab.";
+    return isEn
+      ? "The camera is already in use by another app or tab."
+      : "กล้องถูกใช้งานโดยแอปหรือแท็บอื่นอยู่";
   }
-  return `เปิดกล้องไม่สำเร็จ / Couldn't start the camera: ${message}`;
+  return isEn
+    ? `Couldn't start the camera: ${message}`
+    : `เปิดกล้องไม่สำเร็จ: ${message}`;
+}
+
+function CameraIcon({ className = "w-6 h-6" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M4 7h3l2-2h6l2 2h3a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="13" r="3.5" />
+    </svg>
+  );
+}
+
+function AlertIcon({ className = "w-6 h-6" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TorchIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+      <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeScannerProps) {
+  const { locale } = useI18n();
+  const isEn = locale?.toLowerCase().startsWith("en") ?? false;
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const lastScanRef = useRef<number>(0);
-  const [error, setError] = useState<string | null>(null);
+  const onScanRef = useRef(onScan);
+
+  const [rawError, setRawError] = useState<unknown>(null);
   const [ready, setReady] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
 
   useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
     let cancelled = false;
-    setError(null);
+    setRawError(null);
     setReady(false);
 
     // Explicitly restrict to the barcode formats you actually need —
@@ -82,8 +127,8 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
               const now = Date.now();
               if (now - lastScanRef.current < cooldownMs) return;
               lastScanRef.current = now;
-              
-              onScan(text);
+
+              onScanRef.current(text);
               return;
             }
             // NotFoundException fires continuously while nothing is in
@@ -111,7 +156,7 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
         setTorchSupported(!!capabilities?.torch);
       } catch (err) {
         console.error("Failed to start camera:", err);
-        if (!cancelled) setError(describeCameraError(err));
+        if (!cancelled) setRawError(err);
       }
     };
 
@@ -122,7 +167,7 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
       controlsRef.current?.stop();
       controlsRef.current = null;
     };
-  }, [onScan, cooldownMs]);
+  }, [cooldownMs]);
 
   const toggleTorch = async () => {
     const track = (videoRef.current?.srcObject as MediaStream)?.getVideoTracks()?.[0];
@@ -138,8 +183,10 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
     }
   };
 
+  const errorMessage = rawError !== null ? describeCameraError(rawError, isEn) : null;
+
   return (
-    <div className="relative w-full h-full bg-black">
+    <div className="relative w-full h-full bg-black overflow-hidden">
       <video
         ref={videoRef}
         className="w-full h-full object-cover"
@@ -147,16 +194,22 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
         playsInline
       />
 
-      {!ready && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500 text-sm font-medium pointer-events-none">
-          📷 กำลังเปิดกล้อง... / Starting camera...
+      {!ready && !errorMessage && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-gray-100 text-gray-600 text-sm font-medium px-4 text-center pointer-events-none">
+          <div className="w-11 h-11 rounded-2xl bg-white shadow-sm border border-gray-200/80 flex items-center justify-center text-gray-500">
+            <CameraIcon className="w-6 h-6 animate-pulse" />
+          </div>
+          <span>{isEn ? "Starting camera..." : "กำลังเปิดกล้อง..."}</span>
         </div>
       )}
 
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-50 p-3">
-          <p className="text-red-600 text-xs font-medium text-center leading-snug">
-            ⚠️ {error}
+      {errorMessage && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-50 p-4 text-center">
+          <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+            <AlertIcon className="w-5 h-5" />
+          </div>
+          <p className="text-red-600 text-sm font-semibold leading-relaxed">
+            {errorMessage}
           </p>
         </div>
       )}
@@ -165,9 +218,22 @@ export default function BarcodeScanner({ onScan, cooldownMs = 1500 }: BarcodeSca
         <button
           type="button"
           onClick={toggleTorch}
-          className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-md z-10"
+          className={`absolute bottom-3 left-3 flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl shadow-sm backdrop-blur-sm active:scale-95 transition z-10 ${
+            torchOn
+              ? "bg-amber-500 text-white"
+              : "bg-black/65 text-white hover:bg-black/80"
+          }`}
         >
-          {torchOn ? "🔦 ปิดไฟฉาย" : "🔦 เปิดไฟฉาย"}
+          <TorchIcon className="w-4 h-4 shrink-0" />
+          <span>
+            {torchOn
+              ? isEn
+                ? "Torch off"
+                : "ปิดไฟฉาย"
+              : isEn
+              ? "Torch on"
+              : "เปิดไฟฉาย"}
+          </span>
         </button>
       )}
     </div>

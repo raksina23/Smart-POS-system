@@ -8,10 +8,9 @@ import { TKey } from "../lib/dictionaries";
 
 type Section = {
   id: string;
-  icon: string;
   titleKey: TKey;
-  admin?: boolean; // true = เห็นเฉพาะ Admin
-  numbered?: boolean; // ค่าเริ่มต้น true
+  admin?: boolean;
+  numbered?: boolean;
   stepKeys: TKey[];
   tipKeys?: TKey[];
 };
@@ -19,7 +18,6 @@ type Section = {
 const SECTIONS: Section[] = [
   {
     id: "start",
-    icon: "🔐",
     titleKey: "manual.start.title",
     stepKeys: [
       "manual.start.step1",
@@ -30,7 +28,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "pos",
-    icon: "🛒",
     titleKey: "manual.pos.title",
     stepKeys: [
       "manual.pos.step1",
@@ -49,7 +46,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "inventory",
-    icon: "📦",
     titleKey: "manual.inventory.title",
     admin: true,
     stepKeys: [
@@ -65,7 +61,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "categories",
-    icon: "🏷️",
     titleKey: "manual.categories.title",
     admin: true,
     stepKeys: [
@@ -78,7 +73,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "dashboard",
-    icon: "📊",
     titleKey: "manual.dashboard.title",
     admin: true,
     stepKeys: [
@@ -92,7 +86,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "ai",
-    icon: "🤖",
     titleKey: "manual.ai.title",
     admin: true,
     stepKeys: [
@@ -108,7 +101,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "history",
-    icon: "📋",
     titleKey: "manual.history.title",
     admin: true,
     stepKeys: [
@@ -118,7 +110,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "users",
-    icon: "👥",
     titleKey: "manual.users.title",
     admin: true,
     stepKeys: [
@@ -129,7 +120,6 @@ const SECTIONS: Section[] = [
   },
   {
     id: "troubleshooting",
-    icon: "🛠️",
     titleKey: "manual.troubleshooting.title",
     numbered: false,
     stepKeys: [
@@ -141,6 +131,77 @@ const SECTIONS: Section[] = [
     ],
   },
 ];
+
+function SectionIcon({ id }: { id: string }) {
+  const cls = "w-5 h-5 text-blue-600";
+  switch (id) {
+    case "start":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="5" y="11" width="14" height="10" rx="2" />
+          <path d="M8 11V7a4 4 0 018 0v4" strokeLinecap="round" />
+        </svg>
+      );
+    case "pos":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M6 6h15l-1.5 9h-12z" strokeLinejoin="round" />
+          <path d="M6 6L5 3H2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="9" cy="20" r="1.5" />
+          <circle cx="18" cy="20" r="1.5" />
+        </svg>
+      );
+    case "inventory":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" strokeLinejoin="round" />
+          <path d="M3 8l9 5 9-5M12 13v8" strokeLinejoin="round" />
+        </svg>
+      );
+    case "categories":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" strokeLinejoin="round" />
+          <circle cx="7" cy="7" r="1.5" fill="currentColor" />
+        </svg>
+      );
+    case "dashboard":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" strokeLinecap="round" />
+        </svg>
+      );
+    case "ai":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" strokeLinejoin="round" />
+          <path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z" strokeLinejoin="round" />
+        </svg>
+      );
+    case "history":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+          <rect x="9" y="3" width="6" height="4" rx="1" />
+          <path d="M9 12h6M9 16h4" strokeLinecap="round" />
+        </svg>
+      );
+    case "users":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="9" cy="8" r="3.5" />
+          <path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round" />
+          <path d="M16 11a3 3 0 100-6M21 19c0-2.2-1.6-4-4-4.6" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" strokeLinejoin="round" />
+        </svg>
+      );
+  }
+}
 
 export default function ManualPage() {
   const { t } = useI18n();
@@ -172,7 +233,7 @@ export default function ManualPage() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -213,7 +274,7 @@ export default function ManualPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("manual.searchPlaceholder")}
-          className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
         />
 
         {visible.length > 0 && (
@@ -222,9 +283,9 @@ export default function ManualPage() {
               <a
                 key={s.id}
                 href={`#${s.id}`}
-                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition"
+                className="text-xs font-medium px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition"
               >
-                {s.icon} {t(s.titleKey)}
+                {t(s.titleKey)}
               </a>
             ))}
           </div>
@@ -242,9 +303,9 @@ export default function ManualPage() {
             id={s.id}
             className="scroll-mt-20 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5"
           >
-            <div className="flex items-start gap-3 mb-3">
-              <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center text-xl">
-                {s.icon}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center">
+                <SectionIcon id={s.id} />
               </div>
               <div className="min-w-0">
                 <h2 className="font-bold text-gray-800">{t(s.titleKey)}</h2>
@@ -256,11 +317,11 @@ export default function ManualPage() {
               </div>
             </div>
 
-            <ol className="space-y-2">
+            <ol className="space-y-2.5">
               {s.stepKeys.map((stepKey, i) => (
                 <li key={i} className="flex gap-3 text-sm text-gray-700 leading-relaxed">
                   <span
-                    className={`shrink-0 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mt-0.5 ${
+                    className={`shrink-0 w-6 h-6 rounded-full text-xs font-bold tabular-nums flex items-center justify-center mt-0.5 ${
                       s.numbered === false
                         ? "bg-gray-100 text-gray-500"
                         : "bg-blue-600 text-white"
@@ -274,12 +335,12 @@ export default function ManualPage() {
             </ol>
 
             {s.tipKeys && (
-              <div className="mt-4 bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-1">
-                <p className="text-xs font-bold text-amber-700">
+              <div className="mt-4 bg-amber-50/80 border border-amber-200/60 rounded-xl p-3.5 space-y-1">
+                <p className="text-xs font-bold text-amber-800">
                   {t("manual.tipsHeader")}
                 </p>
                 {s.tipKeys.map((tipKey, i) => (
-                  <p key={i} className="text-xs text-amber-800 leading-relaxed">
+                  <p key={i} className="text-xs text-amber-900/80 leading-relaxed">
                     • {t(tipKey)}
                   </p>
                 ))}

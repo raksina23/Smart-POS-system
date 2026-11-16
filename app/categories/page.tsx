@@ -155,7 +155,7 @@ export default function CategoriesPage() {
         <h1 className="text-2xl font-bold text-gray-800 mb-1">
           {t("categories.title")}
         </h1>
-        <p className="text-sm text-gray-400 mb-6">
+        <p className="text-sm text-gray-500 mb-6">
           {t("categories.description")}
         </p>
 
@@ -170,7 +170,7 @@ export default function CategoriesPage() {
               placeholder={t("categories.namePlaceholder")}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
             />
             <input
               type="number"
@@ -178,7 +178,7 @@ export default function CategoriesPage() {
               min="0"
               value={newDays}
               onChange={(e) => setNewDays(e.target.value)}
-              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm tabular-nums"
             />
             <input
               type="number"
@@ -187,12 +187,12 @@ export default function CategoriesPage() {
               max="100"
               value={newDiscount}
               onChange={(e) => setNewDiscount(e.target.value)}
-              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm tabular-nums"
             />
             <button
               onClick={handleAddCategory}
               disabled={adding}
-              className="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 whitespace-nowrap"
+              className="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 whitespace-nowrap text-sm"
             >
               {adding ? t("categories.adding") : t("categories.addButton")}
             </button>
@@ -211,13 +211,12 @@ export default function CategoriesPage() {
         ) : categories.length === 0 ? (
           <p className="text-center text-gray-400 py-10">{t("categories.empty")}</p>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-100 divide-y">
-            {/* Header row for clarity on desktop */}
-            <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-gray-50 text-xs font-bold text-gray-400 uppercase">
+          <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+            <div className="hidden md:flex items-center gap-3 px-4 py-2.5 bg-gray-50 text-xs font-semibold text-gray-500">
               <span className="flex-1">{t("categories.colCategory")}</span>
               <span className="w-28 text-right">{t("categories.colShelfLife")}</span>
               <span className="w-24 text-right">{t("categories.colDiscount")}</span>
-              <span className="w-10"></span>
+              <span className="w-20"></span>
             </div>
 
             {categories.map((cat) => (
@@ -234,7 +233,7 @@ export default function CategoriesPage() {
                     placeholder={t("categories.notSetPlaceholder")}
                     defaultValue={cat.shelf_life_days ?? ""}
                     onBlur={(e) => updateShelfLife(cat.id, e.target.value)}
-                    className="w-24 md:w-28 px-3 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-24 md:w-28 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-right tabular-nums focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                   <span className="text-xs text-gray-400 md:hidden">
                     {t("categories.unitDays")}
@@ -251,12 +250,12 @@ export default function CategoriesPage() {
                     max="100"
                     defaultValue={cat.discount_percent ?? 0}
                     onBlur={(e) => updateDiscountPercent(cat.id, e.target.value)}
-                    className="w-20 md:w-24 px-3 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-pink-400 outline-none"
+                    className="w-20 md:w-24 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-right tabular-nums focus:ring-2 focus:ring-pink-400 outline-none"
                   />
                   <span className="text-xs text-gray-400">%</span>
                 </div>
 
-                <div className="flex items-center justify-between md:justify-end gap-2 md:w-10">
+                <div className="flex items-center justify-end gap-2 md:w-20">
                   {savingId === cat.id && (
                     <span className="text-xs text-blue-500 whitespace-nowrap">
                       {t("categories.savingShort")}
@@ -264,7 +263,7 @@ export default function CategoriesPage() {
                   )}
                   <button
                     onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                    className="text-gray-300 hover:text-red-500 text-sm px-2"
+                    className="text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium px-2.5 py-1.5 transition"
                   >
                     {t("categories.delete")}
                   </button>

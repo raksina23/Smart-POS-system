@@ -89,7 +89,7 @@ export default function EditProductPage() {
     };
 
     fetchProduct();
-  }, [id]);
+  }, [id, router, t]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -205,13 +205,14 @@ export default function EditProductPage() {
   // Shared input style: full-width, 16px text on mobile (prevents iOS
   // auto-zoom), taller touch target on mobile, compact on larger screens.
   const inputClass =
-    "w-full min-w-0 px-4 py-3 sm:py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base sm:text-sm";
+    "w-full min-w-0 px-4 py-3 sm:py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm text-gray-800 bg-white transition";
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 font-sans">
         <Navbar role="Admin" />
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-20 text-gray-400 text-sm">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           {t("editProduct.loadingData")}
         </div>
       </div>
@@ -219,69 +220,83 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       <Navbar role="Admin" />
-      <div className="max-w-2xl mx-auto p-4 md:p-6">
+      <div className="max-w-2xl mx-auto px-3 py-4 sm:px-6 sm:py-6">
 
-        <div className="flex items-center gap-3 mb-6">
+        {/* Header */}
+        <div className="flex items-center gap-2.5 mb-5 mt-1">
           <button
+            type="button"
             onClick={() => router.push("/inventory")}
-            className="text-gray-400 hover:text-gray-600 transition text-xl"
+            className="w-10 h-10 -ml-1.5 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-100 active:scale-95 transition flex items-center justify-center shrink-0"
+            aria-label={t("common.cancel")}
           >
-            ←
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-          <h1 className="text-2xl font-bold text-gray-800">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
             {t("editProduct.title")}
           </h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-            <h2 className="text-sm font-bold text-gray-600">
+          {/* Photo Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 space-y-3">
+            <h2 className="text-base font-bold text-gray-800">
               {t("editProduct.photoSection")}
             </h2>
 
             {photoPreview ? (
-              <div className="relative w-32 h-32">
+              <div className="relative w-36 h-36">
                 <img
                   src={photoPreview}
                   alt={t("editProduct.photoPreviewAlt")}
-                  className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                  className="w-36 h-36 object-cover rounded-xl border border-gray-200"
                 />
                 <button
                   type="button"
                   onClick={removePhoto}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center shadow"
+                  className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-sm transition"
+                  aria-label="Remove photo"
                 >
-                  ✕
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M4 4L12 12M12 4L4 12" strokeLinecap="round" />
+                  </svg>
                 </button>
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition text-gray-400 text-xs gap-1">
-                <span className="text-2xl">📷</span>
+              <label className="flex flex-col items-center justify-center w-36 h-36 border border-dashed border-gray-300 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 hover:border-gray-400 transition text-gray-500 text-sm font-medium gap-1.5 px-2 text-center">
+                <svg className="w-7 h-7 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M4 7h3l2-2h6l2 2h3a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="13" r="3.5" />
+                </svg>
                 <span>{t("editProduct.addPhoto")}</span>
                 <input
                   type="file"
                   accept="image/*"
-                  // capture="environment"
                   onChange={handlePhotoChange}
                   className="hidden"
                 />
               </label>
             )}
             {errors.photo && (
-              <p className="text-red-500 text-xs">{t(errors.photo.key, errors.photo.vars)}</p>
+              <p className="text-red-500 text-sm font-medium">
+                {t(errors.photo.key, errors.photo.vars)}
+              </p>
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">
+          {/* General Info Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 space-y-4">
+            <h2 className="text-base font-bold text-gray-800">
               {t("editProduct.generalInfoSection")}
             </h2>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                 {t("editProduct.nameLabel")} <span className="text-red-500">*</span>
               </label>
               <input
@@ -292,12 +307,14 @@ export default function EditProductPage() {
                 className={inputClass}
               />
               {errors.name && (
-                <p className="text-red-500 text-xs mt-1">{t(errors.name.key, errors.name.vars)}</p>
+                <p className="text-red-500 text-sm font-medium mt-1.5">
+                  {t(errors.name.key, errors.name.vars)}
+                </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                 {t("editProduct.barcodeLabel")} <span className="text-red-500">*</span>
               </label>
               <input
@@ -306,15 +323,17 @@ export default function EditProductPage() {
                 name="barcode"
                 value={form.barcode}
                 onChange={handleChange}
-                className={inputClass}
+                className={`${inputClass} font-mono tabular-nums`}
               />
               {errors.barcode && (
-                <p className="text-red-500 text-xs mt-1">{t(errors.barcode.key, errors.barcode.vars)}</p>
+                <p className="text-red-500 text-sm font-medium mt-1.5">
+                  {t(errors.barcode.key, errors.barcode.vars)}
+                </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                 {t("editProduct.categoryLabel")} <span className="text-red-500">*</span>
               </label>
               <select
@@ -322,7 +341,7 @@ export default function EditProductPage() {
                 value={form.category}
                 onChange={handleChange}
                 disabled={loadingCategories}
-                className={`${inputClass} bg-white`}
+                className={inputClass}
               >
                 <option value="">
                   {loadingCategories ? t("common.loading") : t("editProduct.selectCategory")}
@@ -337,8 +356,6 @@ export default function EditProductPage() {
                       : cat.name}
                   </option>
                 ))}
-                {/* keep the product's current category selectable even if it
-                    was later deleted/renamed in the categories table */}
                 {form.category && !categories.some((c) => c.name === form.category) && (
                   <option value={form.category}>
                     {t("editProduct.categoryNotFound", { name: form.category })}
@@ -346,20 +363,22 @@ export default function EditProductPage() {
                 )}
               </select>
               {errors.category && (
-                <p className="text-red-500 text-xs mt-1">{t(errors.category.key, errors.category.vars)}</p>
+                <p className="text-red-500 text-sm font-medium mt-1.5">
+                  {t(errors.category.key, errors.category.vars)}
+                </p>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">
+          {/* Pricing Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 space-y-4">
+            <h2 className="text-base font-bold text-gray-800">
               {t("editProduct.pricingSection")}
             </h2>
 
-            {/* 1 คอลัมน์บนมือถือ, 2 คอลัมน์ตั้งแต่ sm ขึ้นไป */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   {t("editProduct.priceLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -371,15 +390,17 @@ export default function EditProductPage() {
                   placeholder="0.00"
                   min="0"
                   step="any"
-                  className={inputClass}
+                  className={`${inputClass} tabular-nums`}
                 />
                 {errors.price && (
-                  <p className="text-red-500 text-xs mt-1">{t(errors.price.key, errors.price.vars)}</p>
+                  <p className="text-red-500 text-sm font-medium mt-1.5">
+                    {t(errors.price.key, errors.price.vars)}
+                  </p>
                 )}
               </div>
 
               <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   {t("editProduct.costLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -391,38 +412,43 @@ export default function EditProductPage() {
                   placeholder="0.00"
                   min="0"
                   step="any"
-                  className={inputClass}
+                  className={`${inputClass} tabular-nums`}
                 />
                 {errors.cost && (
-                  <p className="text-red-500 text-xs mt-1">{t(errors.cost.key, errors.cost.vars)}</p>
+                  <p className="text-red-500 text-sm font-medium mt-1.5">
+                    {t(errors.cost.key, errors.cost.vars)}
+                  </p>
                 )}
               </div>
             </div>
 
             {Number(form.price) > 0 && form.cost && (
-              <div className="bg-green-50 rounded-lg px-4 py-2 text-sm">
-                <span className="text-green-700 font-medium">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-sm tabular-nums">
+                <span className="text-emerald-700 font-semibold">
                   {t("editProduct.estProfit", {
                     amount: (Number(form.price) - Number(form.cost)).toFixed(2),
                   })}
                 </span>
-                <span className="text-green-500 ml-2">
+                <span className="text-emerald-600 font-medium ml-2">
                   ({(((Number(form.price) - Number(form.cost)) / Number(form.price)) * 100).toFixed(1)}%)
                 </span>
               </div>
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <h2 className="text-sm font-bold text-gray-600">
-              {t("editProduct.minStockSection")}
-            </h2>
-            <p className="text-xs text-gray-400 -mt-2">
-              {t("editProduct.minStockHint")}
-            </p>
+          {/* Min Stock Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 space-y-4">
+            <div>
+              <h2 className="text-base font-bold text-gray-800">
+                {t("editProduct.minStockSection")}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                {t("editProduct.minStockHint")}
+              </p>
+            </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                 {t("editProduct.minStockLabel")} <span className="text-red-500">*</span>
               </label>
               <input
@@ -433,26 +459,29 @@ export default function EditProductPage() {
                 onChange={handleChange}
                 placeholder="0"
                 min="0"
-                className={inputClass}
+                className={`${inputClass} tabular-nums`}
               />
               {errors.minStock && (
-                <p className="text-red-500 text-xs mt-1">{t(errors.minStock.key, errors.minStock.vars)}</p>
+                <p className="text-red-500 text-sm font-medium mt-1.5">
+                  {t(errors.minStock.key, errors.minStock.vars)}
+                </p>
               )}
             </div>
           </div>
 
-          <div className="flex gap-3 pb-6">
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-1 pb-6">
             <button
               type="button"
               onClick={() => router.push("/inventory")}
-              className="flex-1 border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
+              className="flex-1 bg-white border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-50 transition text-sm"
             >
               {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
+              className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 active:scale-[0.99] transition disabled:opacity-50 text-sm"
             >
               {saving || uploading ? t("editProduct.saving") : t("editProduct.saveChanges")}
             </button>

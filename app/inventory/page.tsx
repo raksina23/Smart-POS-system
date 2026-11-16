@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 import { useI18n } from "../lib/i18n";
-import { TKey } from "../lib/dictionaries";
 
 interface StockBatch {
   id: string;
@@ -78,6 +77,40 @@ const computeCategoryDiscountPrice = (
   const rawPrice = Math.round(price * (1 - discountPercent / 100));
   return Math.max(rawPrice, cost);
 };
+
+function BoxIcon({ className = "w-8 h-8" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" strokeLinejoin="round" />
+      <path d="M3 8l9 5 9-5M12 13v8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RestockIcon({ className = "w-4 h-4 shrink-0" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 4v11m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EditIcon({ className = "w-4 h-4 shrink-0" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className = "w-4 h-4 shrink-0" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function InventoryPage() {
   const { t } = useI18n();
@@ -224,21 +257,22 @@ export default function InventoryPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       <Navbar role="Admin" />
 
-      <div className="max-w-2xl mx-auto px-3 py-4 sm:px-6 sm:py-6 space-y-3">
+      <div className="max-w-2xl mx-auto px-3 py-4 sm:px-6 sm:py-6 space-y-3.5">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 mt-1">
           <div>
-            <h1 className="text-2xl sm:text-2xl font-bold text-gray-800 leading-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
               {t("nav.inventory")}
             </h1>
           </div>
           <button
+            type="button"
             onClick={() => router.push("/inventory/add")}
-            className="hidden sm:flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition"
+            className="hidden sm:flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition"
           >
             {t("inventory.addProduct")}
           </button>
@@ -251,22 +285,26 @@ export default function InventoryPage() {
             placeholder={t("inventory.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm bg-white"
           />
           <button
+            type="button"
             onClick={() => router.push("/inventory/add")}
-            className="sm:hidden flex-shrink-0 bg-blue-600 text-white w-11 h-11 rounded-xl text-xl font-bold shadow-sm hover:bg-blue-700 transition flex items-center justify-center"
+            className="sm:hidden flex-shrink-0 bg-blue-600 text-white w-11 h-11 rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition flex items-center justify-center"
             aria-label={t("inventory.addProductAria")}
           >
-            +
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
 
         {/* Category filter */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <button
+            type="button"
             onClick={() => setSelectedCategory("")}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border transition whitespace-nowrap ${
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ${
               selectedCategory === ""
                 ? "bg-blue-600 text-white border-blue-600"
                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -276,9 +314,10 @@ export default function InventoryPage() {
           </button>
           {categoryNames.map((cat) => (
             <button
+              type="button"
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border transition whitespace-nowrap ${
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ${
                 selectedCategory === cat
                   ? "bg-blue-600 text-white border-blue-600"
                   : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -291,7 +330,7 @@ export default function InventoryPage() {
 
         {/* Count */}
         {!loading && (
-          <p className="text-sm text-gray-400 px-1">
+          <p className="text-sm text-gray-500 px-1 tabular-nums">
             {filtered.length === 1
               ? t("inventory.foundCountOne", { n: filtered.length })
               : t("inventory.foundCount", { n: filtered.length })}
@@ -301,12 +340,12 @@ export default function InventoryPage() {
         {/* Content */}
         {loading ? (
           <div className="text-center py-16 text-gray-400 text-sm">
-            <div className="text-3xl mb-2">⏳</div>
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             {t("common.loading")}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 text-sm">
-            <div className="text-3xl mb-2">📦</div>
+          <div className="text-center py-16 text-gray-400 text-sm flex flex-col items-center">
+            <BoxIcon className="w-10 h-10 text-gray-300 mb-2.5" />
             {t("inventory.noProducts")}
           </div>
         ) : (
@@ -329,8 +368,8 @@ export default function InventoryPage() {
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
                 >
                   {/* Photo */}
-                  <div className="w-full flex justify-center pt-3 pb-1 bg-white">
-                    <div className="w-40 h-40 rounded-lg overflow-hidden bg-gray-100">
+                  <div className="w-full flex justify-center pt-3 px-3 pb-1 bg-white">
+                    <div className="w-full aspect-square max-w-[160px] rounded-xl overflow-hidden bg-gray-100">
                       {product.photo_url ? (
                         <img
                           src={product.photo_url}
@@ -338,21 +377,21 @@ export default function InventoryPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">
-                          📦
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                          <BoxIcon className="w-9 h-9" />
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="p-3 flex-1 flex flex-col">
+                  <div className="p-3 sm:p-3.5 flex-1 flex flex-col">
                     {/* Name + stock */}
                     <div className="flex items-start justify-between gap-1.5">
-                      <p className="font-bold text-gray-800 text-sm leading-snug flex-1 min-w-0 truncate">
+                      <p className="font-bold text-gray-800 text-sm sm:text-base leading-snug flex-1 min-w-0 line-clamp-2">
                         {product.name}
                       </p>
                       <span
-                        className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        className={`flex-shrink-0 text-xs font-bold tabular-nums px-2 py-0.5 rounded-full whitespace-nowrap ${
                           isLowStock
                             ? "bg-orange-100 text-orange-600"
                             : "bg-gray-100 text-gray-700"
@@ -364,23 +403,24 @@ export default function InventoryPage() {
 
                     {/* Badges */}
                     {(isLowStock || isExpiringSoon || activeBatches.length > 1) && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {isLowStock && (
-                          <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">
+                          <span className="text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
                             {t("inventory.lowStock")}
                           </span>
                         )}
                         {isExpiringSoon && (
-                          <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                          <span className="text-xs font-semibold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
                             {t("inventory.expiringSoon")}
                           </span>
                         )}
                         {activeBatches.length > 1 && (
                           <button
+                            type="button"
                             onClick={() =>
                               setExpandedProductId(isExpanded ? null : product.id)
                             }
-                            className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full hover:bg-blue-100"
+                            className="text-xs font-semibold tabular-nums bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full hover:bg-blue-100 transition"
                           >
                             {t("inventory.batchCount", {
                               n: activeBatches.length,
@@ -392,31 +432,35 @@ export default function InventoryPage() {
                     )}
 
                     {/* Meta info */}
-                    <div className="mt-2 space-y-0.5">
-                      <p className="text-sm text-gray-500">
+                    <div className="mt-2.5 space-y-1">
+                      <p className="text-sm text-gray-500 break-all">
                         <span className="text-gray-400">{t("inventory.barcodeLabel")}</span>{" "}
-                        {product.barcode}
+                        <span className="font-mono tabular-nums">{product.barcode}</span>
                       </p>
                       <p className="text-sm text-gray-500">
                         <span className="text-gray-400">{t("inventory.categoryLabel")}</span>{" "}
                         {product.category}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 tabular-nums">
                         <span className="text-gray-400">{t("inventory.priceLabel")}</span>{" "}
-                        <span className="font-medium text-gray-700">฿{product.price}</span>
+                        <span className="font-semibold text-gray-800">฿{product.price}</span>
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 tabular-nums">
                         <span className="text-gray-400">{t("inventory.costLabel")}</span>{" "}
-                        <span className="font-medium text-gray-700">฿{product.cost}</span>
+                        <span className="font-semibold text-gray-800">฿{product.cost}</span>
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 tabular-nums">
                         <span className="text-gray-400">{t("inventory.profitLabel")}</span>{" "}
-                        <span className="font-medium text-green-600">
+                        <span className="font-bold text-emerald-600">
                           ฿{product.price - product.cost}
                         </span>
                       </p>
                       {nearestExpiry && (
-                        <p className={`text-sm font-medium ${isExpiringSoon ? "text-red-500" : "text-gray-400"}`}>
+                        <p
+                          className={`text-sm font-medium tabular-nums pt-0.5 ${
+                            isExpiringSoon ? "text-red-600 font-bold" : "text-gray-400"
+                          }`}
+                        >
                           {t("inventory.nearestExpiry", { date: nearestExpiry })}
                           {isExpiringSoon && (
                             <>
@@ -434,7 +478,7 @@ export default function InventoryPage() {
                         remaining quantity — matches the Dashboard rule exactly. */}
                     {isExpanded && (
                       <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                        <p className="text-xs font-bold text-gray-500">
+                        <p className="text-xs sm:text-sm font-bold text-gray-600">
                           {t("inventory.batchesHeader")}
                         </p>
                         {activeBatches.map((batch, idx) => {
@@ -453,26 +497,26 @@ export default function InventoryPage() {
                           return (
                             <div
                               key={batch.id}
-                              className={`rounded-lg p-2.5 text-xs space-y-1.5 border ${
+                              className={`rounded-xl p-2.5 text-xs sm:text-sm space-y-1.5 border ${
                                 isExpiringSoonBatch
-                                  ? "bg-red-50 border-red-200"
+                                  ? "bg-red-50/80 border-red-200"
                                   : "bg-gray-50 border-gray-100"
                               }`}
                             >
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-gray-600">
+                              <div className="flex justify-between items-center gap-1">
+                                <span className="font-semibold text-gray-700">
                                   {t("inventory.batchNumber", { n: idx + 1 })}{" "}
                                   {idx === 0 && t("inventory.sellsFirst")}
                                 </span>
                                 <span
-                                  className={`font-bold ${
-                                    isExpiringSoonBatch ? "text-red-600" : "text-gray-700"
+                                  className={`font-bold tabular-nums shrink-0 ${
+                                    isExpiringSoonBatch ? "text-red-600" : "text-gray-800"
                                   }`}
                                 >
                                   {t("inventory.stockUnit", { n: batch.quantity })}
                                 </span>
                               </div>
-                              <p className="text-gray-400">
+                              <p className="text-gray-500 tabular-nums">
                                 {batch.expiration_date
                                   ? t("inventory.batchExpiry", { date: batch.expiration_date })
                                   : t("inventory.noExpiry")}
@@ -481,7 +525,7 @@ export default function InventoryPage() {
                               {isExpiringSoonBatch && (
                                 <div className="pt-1">
                                   {alreadyDiscounted ? (
-                                    <p className="text-green-600 font-bold">
+                                    <p className="text-green-700 font-bold tabular-nums">
                                       {t("inventory.alreadyDiscounted", {
                                         price: batch.special_price!,
                                       })}
@@ -492,25 +536,28 @@ export default function InventoryPage() {
                                     </p>
                                   ) : (
                                     <>
-                                      <p className="text-red-600 font-bold mb-1">
+                                      <p className="text-red-600 font-bold mb-1.5 tabular-nums">
                                         {t("inventory.expiringDiscountHint", {
                                           days: batchDaysLeft!,
                                           percent: categoryDiscount,
                                         })}
                                       </p>
-                                      <div className="flex items-center justify-between bg-white rounded-md px-2 py-1.5 border border-red-200">
-                                        <span className="text-gray-400 line-through">
-                                          ฿{product.price}
-                                        </span>
-                                        <span className="font-bold text-red-600">
-                                          ฿{computedPrice}
-                                        </span>
+                                      <div className="flex flex-wrap items-center justify-between gap-1.5 bg-white rounded-lg px-2.5 py-1.5 border border-red-200 tabular-nums">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-gray-400 line-through">
+                                            ฿{product.price}
+                                          </span>
+                                          <span className="font-bold text-red-600">
+                                            ฿{computedPrice}
+                                          </span>
+                                        </div>
                                         <button
+                                          type="button"
                                           onClick={() =>
                                             confirmBatchDiscount(batch.id, computedPrice)
                                           }
                                           disabled={applyingBatchId === batch.id}
-                                          className="bg-red-600 text-white px-2.5 py-1 rounded-md font-bold hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
+                                          className="bg-red-500 text-white px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-50 whitespace-nowrap transition"
                                         >
                                           {applyingBatchId === batch.id
                                             ? "..."
@@ -531,22 +578,28 @@ export default function InventoryPage() {
                   {/* Action buttons */}
                   <div className="border-t border-gray-100 flex flex-col">
                     <button
+                      type="button"
                       onClick={() => openRestock(product)}
-                      className="py-2.5 text-sm font-medium text-green-600 hover:bg-green-50 active:bg-green-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
+                      className="py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 transition flex items-center justify-center gap-1.5 border-b border-gray-100"
                     >
-                      📥 <span>{t("inventory.restock")}</span>
+                      <RestockIcon />
+                      <span>{t("inventory.restock")}</span>
                     </button>
                     <button
+                      type="button"
                       onClick={() => router.push(`/inventory/edit/${product.id}`)}
-                      className="py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1 border-b border-gray-100"
+                      className="py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition flex items-center justify-center gap-1.5 border-b border-gray-100"
                     >
-                      ✏️ <span>{t("inventory.edit")}</span>
+                      <EditIcon />
+                      <span>{t("inventory.edit")}</span>
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleDelete(product.id, product.name)}
-                      className="py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1"
+                      className="py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 active:bg-red-100 transition flex items-center justify-center gap-1.5"
                     >
-                      🗑️ <span>{t("inventory.delete")}</span>
+                      <TrashIcon />
+                      <span>{t("inventory.delete")}</span>
                     </button>
                   </div>
                 </div>
@@ -562,17 +615,17 @@ export default function InventoryPage() {
       {/* Restock modal */}
       {restockTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 space-y-4">
+          <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl">
             <div>
               <h2 className="font-bold text-gray-800 text-lg">
                 {t("inventory.restockModalTitle")}
               </h2>
-              <p className="text-sm text-gray-400">{restockTarget.name}</p>
+              <p className="text-sm text-gray-500 mt-0.5">{restockTarget.name}</p>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
-                <label className="text-sm text-gray-600 font-medium">
+                <label className="text-sm text-gray-700 font-semibold">
                   {t("inventory.quantityReceived")}
                 </label>
                 <input
@@ -580,18 +633,18 @@ export default function InventoryPage() {
                   min={1}
                   value={restockQty}
                   onChange={(e) => setRestockQty(e.target.value)}
-                  className="mt-1 w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="mt-1.5 w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm tabular-nums"
                   placeholder={t("inventory.quantityPlaceholder")}
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="text-sm text-gray-600 font-medium">
+                <label className="text-sm text-gray-700 font-semibold">
                   {t("inventory.batchExpiryLabel")}
                 </label>
                 {restockCategory?.shelf_life_days != null && !restockExpiryTouched && (
-                  <p className="text-xs text-gray-400 mt-0.5 mb-1">
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5 mb-1.5 leading-relaxed">
                     {t("inventory.autoExpiryHint", {
                       category: restockCategory.name,
                       days: restockCategory.shelf_life_days,
@@ -599,7 +652,7 @@ export default function InventoryPage() {
                   </p>
                 )}
                 {restockCategory?.shelf_life_days == null && (
-                  <p className="text-xs text-gray-400 mt-0.5 mb-1">
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5 mb-1.5 leading-relaxed">
                     {t("inventory.noShelfLifeHint")}
                   </p>
                 )}
@@ -610,22 +663,24 @@ export default function InventoryPage() {
                     setRestockExpiry(e.target.value);
                     setRestockExpiryTouched(true);
                   }}
-                  className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm tabular-nums"
                 />
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2.5 pt-2">
               <button
+                type="button"
                 onClick={() => setRestockTarget(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition"
               >
                 {t("common.cancel")}
               </button>
               <button
+                type="button"
                 onClick={submitRestock}
                 disabled={submitting}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition"
               >
                 {submitting ? t("inventory.saving") : t("common.save")}
               </button>
