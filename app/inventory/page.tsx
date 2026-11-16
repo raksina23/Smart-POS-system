@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 import { useI18n } from "../lib/i18n";
+import { bkkDate, daysLeftFrom } from "../lib/dates";
 
 interface StockBatch {
   id: string;
@@ -15,7 +16,7 @@ interface StockBatch {
 interface Product {
   id: string;
   name: string;
-  barcode: string;
+  barcode: string | null;
   price: number;
   cost: number;
   min_stock: number;
@@ -52,19 +53,6 @@ const getNearestExpiry = (p: Product): string | null => {
     (min, b) => (b.expiration_date! < min ? b.expiration_date! : min),
     active[0].expiration_date!
   );
-};
-
-const daysUntil = (dateStr: string) => {
-  const today = new Date();
-  const target = new Date(dateStr);
-  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-};
-
-const toDateInputValue = (date: Date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
 };
 
 // Same formula used on the Dashboard — fixed % per category, floored at
@@ -113,8 +101,10 @@ function TrashIcon({ className = "w-4 h-4 shrink-0" }: { className?: string }) {
 }
 
 export default function InventoryPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
+  const isEn = locale.startsWith("en");
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,8 +121,9 @@ export default function InventoryPage() {
   const [restockExpiryTouched, setRestockExpiryTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Tracks which batch is currently being confirmed for a discount
+  // Tracks which batch is currently being confirmed for a discount or discarded
   const [applyingBatchId, setApplyingBatchId] = useState<string | null>(null);
+  const [discardingBatchId, setDiscardingBatchId] = useState<string | null>(null);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -187,12 +178,10 @@ export default function InventoryPage() {
     setRestockQty("");
     setRestockExpiryTouched(false);
 
-    // Auto-calculate expiry from this product's category shelf life, if set
+    // Auto-calculate expiry (Bangkok time) from this product's category shelf life, if set
     const cat = categories.find((c) => c.name === product.category);
     if (cat?.shelf_life_days != null) {
-      const computed = new Date();
-      computed.setDate(computed.getDate() + cat.shelf_life_days);
-      setRestockExpiry(toDateInputValue(computed));
+      setRestockExpiry(bkkDate(cat.shelf_life_days));
     } else {
       setRestockExpiry("");
     }
@@ -221,6 +210,7 @@ export default function InventoryPage() {
 
     setRestockTarget(null);
     fetchProducts();
+    window.dispatchEvent(new Event("alerts:refresh"));
   };
 
   // Confirms the auto-computed category discount for one batch — same rule
@@ -239,6 +229,31 @@ export default function InventoryPage() {
     }
 
     fetchProducts();
+    window.dispatchEvent(new Event("alerts:refresh"));
+  };
+
+  // Discards an expired batch (sets quantity = 0) instead of discounting it
+  const handleDiscardExpiredBatch = async (productName: string, batch: StockBatch) => {
+    const confirmMsg = isEn
+      ? `Discard "${productName}" (${batch.quantity} units) and remove this expired batch from stock?`
+      : `ยืนยันการตัดทิ้ง "${productName}" จำนวน ${batch.quantity} ชิ้น ออกจากสต็อก (ล็อตหมดอายุ)?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setDiscardingBatchId(batch.id);
+    const { error } = await supabase
+      .from("stock_batches")
+      .update({ quantity: 0 })
+      .eq("id", batch.id);
+    setDiscardingBatchId(null);
+
+    if (error) {
+      alert(t("inventory.errorMessage", { message: error.message }));
+      return;
+    }
+
+    fetchProducts();
+    window.dispatchEvent(new Event("alerts:refresh"));
   };
 
   // Build a unique, sorted list of categories present in the data
@@ -247,7 +262,7 @@ export default function InventoryPage() {
   const filtered = products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.barcode.includes(search);
+      (p.barcode ?? "").includes(search);
     const matchesCategory = selectedCategory ? p.category === selectedCategory : true;
     return matchesSearch && matchesCategory;
   });
@@ -355,9 +370,10 @@ export default function InventoryPage() {
               const activeBatches = getActiveBatches(product);
               const isLowStock = totalStock <= product.min_stock;
               const nearestExpiry = getNearestExpiry(product);
-              const daysLeft = nearestExpiry ? daysUntil(nearestExpiry) : null;
+              const daysLeft = nearestExpiry ? daysLeftFrom(nearestExpiry) : null;
+              const isExpired = daysLeft !== null && daysLeft < 0;
               const isExpiringSoon =
-                daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
+                daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
               const isExpanded = expandedProductId === product.id;
               const categoryDiscount =
                 categories.find((c) => c.name === product.category)?.discount_percent ?? 0;
@@ -402,11 +418,16 @@ export default function InventoryPage() {
                     </div>
 
                     {/* Badges */}
-                    {(isLowStock || isExpiringSoon || activeBatches.length > 1) && (
+                    {(isLowStock || isExpired || isExpiringSoon || activeBatches.length >= 1) && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {isLowStock && (
                           <span className="text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
                             {t("inventory.lowStock")}
+                          </span>
+                        )}
+                        {isExpired && (
+                          <span className="text-xs font-semibold bg-red-600 text-white px-2 py-0.5 rounded-full">
+                            {isEn ? "Expired" : "หมดอายุแล้ว"}
                           </span>
                         )}
                         {isExpiringSoon && (
@@ -414,7 +435,7 @@ export default function InventoryPage() {
                             {t("inventory.expiringSoon")}
                           </span>
                         )}
-                        {activeBatches.length > 1 && (
+                        {activeBatches.length >= 1 && (
                           <button
                             type="button"
                             onClick={() =>
@@ -435,7 +456,7 @@ export default function InventoryPage() {
                     <div className="mt-2.5 space-y-1">
                       <p className="text-sm text-gray-500 break-all">
                         <span className="text-gray-400">{t("inventory.barcodeLabel")}</span>{" "}
-                        <span className="font-mono tabular-nums">{product.barcode}</span>
+                        <span className="font-mono tabular-nums">{product.barcode || "-"}</span>
                       </p>
                       <p className="text-sm text-gray-500">
                         <span className="text-gray-400">{t("inventory.categoryLabel")}</span>{" "}
@@ -452,22 +473,31 @@ export default function InventoryPage() {
                       <p className="text-sm text-gray-500 tabular-nums">
                         <span className="text-gray-400">{t("inventory.profitLabel")}</span>{" "}
                         <span className="font-bold text-emerald-600">
-                          ฿{product.price - product.cost}
+                          ฿{(product.price - product.cost).toLocaleString()}
                         </span>
                       </p>
                       {nearestExpiry && (
                         <p
                           className={`text-sm font-medium tabular-nums pt-0.5 ${
-                            isExpiringSoon ? "text-red-600 font-bold" : "text-gray-400"
+                            isExpired || isExpiringSoon
+                              ? "text-red-600 font-bold"
+                              : "text-gray-400"
                           }`}
                         >
                           {t("inventory.nearestExpiry", { date: nearestExpiry })}
-                          {isExpiringSoon && (
+                          {isExpired ? (
+                            <>
+                              <br />
+                              {isEn
+                                ? `Expired ${Math.abs(daysLeft!)}d ago`
+                                : `หมดอายุแล้ว ${Math.abs(daysLeft!)} วัน`}
+                            </>
+                          ) : isExpiringSoon ? (
                             <>
                               <br />
                               {t("inventory.daysLeft", { n: daysLeft! })}
                             </>
-                          )}
+                          ) : null}
                         </p>
                       )}
                     </div>
@@ -483,10 +513,14 @@ export default function InventoryPage() {
                         </p>
                         {activeBatches.map((batch, idx) => {
                           const batchDaysLeft = batch.expiration_date
-                            ? daysUntil(batch.expiration_date)
+                            ? daysLeftFrom(batch.expiration_date)
                             : null;
+                          const isExpiredBatch =
+                            batchDaysLeft !== null && batchDaysLeft < 0;
                           const isExpiringSoonBatch =
-                            batchDaysLeft !== null && batchDaysLeft <= 7 && batchDaysLeft >= 0;
+                            batchDaysLeft !== null &&
+                            batchDaysLeft >= 0 &&
+                            batchDaysLeft <= 7;
                           const alreadyDiscounted = batch.special_price != null;
                           const computedPrice = computeCategoryDiscountPrice(
                             product.price,
@@ -498,7 +532,7 @@ export default function InventoryPage() {
                             <div
                               key={batch.id}
                               className={`rounded-xl p-2.5 text-xs sm:text-sm space-y-1.5 border ${
-                                isExpiringSoonBatch
+                                isExpiredBatch || isExpiringSoonBatch
                                   ? "bg-red-50/80 border-red-200"
                                   : "bg-gray-50 border-gray-100"
                               }`}
@@ -506,11 +540,13 @@ export default function InventoryPage() {
                               <div className="flex justify-between items-center gap-1">
                                 <span className="font-semibold text-gray-700">
                                   {t("inventory.batchNumber", { n: idx + 1 })}{" "}
-                                  {idx === 0 && t("inventory.sellsFirst")}
+                                  {idx === 0 && !isExpiredBatch && t("inventory.sellsFirst")}
                                 </span>
                                 <span
                                   className={`font-bold tabular-nums shrink-0 ${
-                                    isExpiringSoonBatch ? "text-red-600" : "text-gray-800"
+                                    isExpiredBatch || isExpiringSoonBatch
+                                      ? "text-red-600"
+                                      : "text-gray-800"
                                   }`}
                                 >
                                   {t("inventory.stockUnit", { n: batch.quantity })}
@@ -521,6 +557,30 @@ export default function InventoryPage() {
                                   ? t("inventory.batchExpiry", { date: batch.expiration_date })
                                   : t("inventory.noExpiry")}
                               </p>
+
+                              {isExpiredBatch && (
+                                <div className="pt-1 space-y-1.5">
+                                  <p className="text-red-700 font-bold tabular-nums">
+                                    {isEn
+                                      ? `Expired ${Math.abs(batchDaysLeft!)}d ago`
+                                      : `หมดอายุแล้ว ${Math.abs(batchDaysLeft!)} วัน`}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDiscardExpiredBatch(product.name, batch)
+                                    }
+                                    disabled={discardingBatchId === batch.id}
+                                    className="w-full bg-gray-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-900 disabled:opacity-50 transition"
+                                  >
+                                    {discardingBatchId === batch.id
+                                      ? "..."
+                                      : isEn
+                                      ? `Discard (${batch.quantity})`
+                                      : `ตัดทิ้ง / นำออก (${batch.quantity})`}
+                                  </button>
+                                </div>
+                              )}
 
                               {isExpiringSoonBatch && (
                                 <div className="pt-1">

@@ -1,26 +1,75 @@
 "use client";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 import BarcodeScanner from "../components/BarcodeScanner";
 import { useI18n } from "../lib/i18n";
 import { TKey } from "../lib/dictionaries";
+import { bkkDate } from "../lib/dates";
+
+interface SellableBatch {
+  id: string;
+  quantity: number;
+  expiration_date: string | null;
+  special_price: number | null;
+}
 
 interface CartItem {
   id: string;
   name: string;
-  price: number;
+  price: number; // effective unit price (reflects special_price via FEFO)
+  regularPrice: number;
+  lineTotal: number;
   qty: number;
   barcode: string;
   stock_qty: number;
+  hasDiscount: boolean;
+  discountedUnits: number;
+  batches: SellableBatch[];
 }
 
 type Msg = { key: TKey; vars?: Record<string, string | number> } | null;
 
+// Calculates line total and effective unit price across FEFO-sorted batches
+function computeFefoPricing(
+  batches: SellableBatch[],
+  regularPrice: number,
+  qty: number
+) {
+  let remaining = qty;
+  let lineTotal = 0;
+  let discountedUnits = 0;
+
+  for (const batch of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, batch.quantity);
+    const unitPrice = batch.special_price ?? regularPrice;
+    lineTotal += take * unitPrice;
+    if (batch.special_price != null && batch.special_price < regularPrice) {
+      discountedUnits += take;
+    }
+    remaining -= take;
+  }
+
+  if (remaining > 0) {
+    lineTotal += remaining * regularPrice;
+  }
+
+  const effectiveUnitPrice = qty > 0 ? lineTotal / qty : regularPrice;
+  return {
+    lineTotal,
+    effectiveUnitPrice,
+    hasDiscount: discountedUnits > 0,
+    discountedUnits,
+  };
+}
+
 export default function POSPage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isEn = locale.startsWith("en");
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [error, setError] = useState<Msg>(null);
@@ -33,11 +82,23 @@ export default function POSPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [cameraError, setCameraError] = useState(false);
 
+  // Refs to prevent race conditions and duplicate camera scans
+  const cartRef = useRef<CartItem[]>([]);
+  const isAddingRef = useRef(false);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
+
   useEffect(() => {
     const checkAuthAndRole = async () => {
       setLoadingRole(true);
 
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
       if (authError || !user) {
         console.error("User not logged in");
@@ -64,67 +125,103 @@ export default function POSPage() {
     checkAuthAndRole();
   }, [router]);
 
-  const totalPrice = cart.reduce(
-    (sum, item) => sum + item.price * item.qty,
-    0
-  );
+  const totalPrice = cart.reduce((sum, item) => sum + item.lineTotal, 0);
 
-  const addToCart = useCallback(async (barcode: string) => {
+  const addToCart = useCallback(async (rawBarcode: string) => {
+    const cleanBarcode = rawBarcode.trim();
+    if (!cleanBarcode || isAddingRef.current) return;
+
+    isAddingRef.current = true;
     setLoading(true);
     setError(null);
 
     try {
       const { data: product, error: dbError } = await supabase
         .from("products")
-        .select(`*, stock_batches ( quantity )`)
-        .eq("barcode", barcode.trim())
+        .select(
+          `id, name, price, barcode,
+           stock_batches ( id, quantity, expiration_date, special_price )`
+        )
+        .eq("barcode", cleanBarcode)
         .eq("is_active", true)
         .single();
 
       if (dbError || !product) {
-        setError({ key: "pos.notFound", vars: { barcode } });
-        setLoading(false);
+        setError({ key: "pos.notFound", vars: { barcode: cleanBarcode } });
         return;
       }
 
-      const totalStock = (product.stock_batches ?? []).reduce(
-        (sum: number, b: { quantity: number }) => sum + b.quantity,
-        0
-      );
+      // Exclude depleted or already-expired batches, and sort by FEFO
+      const todayBkk = bkkDate(0);
+      const sellableBatches: SellableBatch[] = (product.stock_batches ?? [])
+        .filter(
+          (b: SellableBatch) =>
+            b.quantity > 0 && (!b.expiration_date || b.expiration_date >= todayBkk)
+        )
+        .sort((a: SellableBatch, b: SellableBatch) => {
+          if (!a.expiration_date) return 1;
+          if (!b.expiration_date) return -1;
+          return a.expiration_date.localeCompare(b.expiration_date);
+        });
+
+      const totalStock = sellableBatches.reduce((sum, b) => sum + b.quantity, 0);
 
       if (totalStock <= 0) {
         setError({ key: "pos.outOfStock", vars: { name: product.name } });
-        setLoading(false);
         return;
       }
 
-      const cartProduct: CartItem = {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        barcode: product.barcode,
-        stock_qty: totalStock,
-        qty: 1,
-      };
+      const existing = cartRef.current.find((item) => item.id === product.id);
+      const nextQty = existing ? existing.qty + 1 : 1;
+
+      if (nextQty > totalStock) {
+        setError({ key: "pos.notEnoughStock" });
+        return;
+      }
+
+      const pricing = computeFefoPricing(sellableBatches, product.price, nextQty);
 
       setCart((prev) => {
-        const existing = prev.find((item) => item.barcode === barcode);
-        if (existing) {
-          if (existing.qty + 1 > totalStock) {
-            setError({ key: "pos.notEnoughStock" });
-            return prev;
-          }
+        const found = prev.find((item) => item.id === product.id);
+        if (found) {
           return prev.map((item) =>
-            item.barcode === barcode
-              ? { ...item, qty: item.qty + 1 }
+            item.id === product.id
+              ? {
+                  ...item,
+                  qty: nextQty,
+                  price: pricing.effectiveUnitPrice,
+                  regularPrice: product.price,
+                  lineTotal: pricing.lineTotal,
+                  stock_qty: totalStock,
+                  hasDiscount: pricing.hasDiscount,
+                  discountedUnits: pricing.discountedUnits,
+                  batches: sellableBatches,
+                }
               : item
           );
         }
-        return [...prev, cartProduct];
+
+        return [
+          ...prev,
+          {
+            id: product.id,
+            name: product.name,
+            price: pricing.effectiveUnitPrice,
+            regularPrice: product.price,
+            lineTotal: pricing.lineTotal,
+            barcode: product.barcode ?? cleanBarcode,
+            stock_qty: totalStock,
+            qty: 1,
+            hasDiscount: pricing.hasDiscount,
+            discountedUnits: pricing.discountedUnits,
+            batches: sellableBatches,
+          },
+        ];
       });
     } catch {
       setError({ key: "pos.dbError" });
     } finally {
+      isAddingRef.current = false;
       setLoading(false);
       setBarcodeInput("");
     }
@@ -156,24 +253,49 @@ export default function POSPage() {
 
   const handleScanSuccess = useCallback(
     (decodedText: string) => {
-      addToCart(decodedText);
+      const clean = decodedText.trim();
+      if (!clean) return;
+
+      const now = Date.now();
+      if (
+        lastScanRef.current.code === clean &&
+        now - lastScanRef.current.time < 1200
+      ) {
+        return;
+      }
+
+      lastScanRef.current = { code: clean, time: now };
+      addToCart(clean);
     },
     [addToCart]
   );
 
   const increaseQty = (id: string) => {
     setError(null);
+    const target = cartRef.current.find((item) => item.id === id);
+    if (!target) return;
+
+    if (target.qty + 1 > target.stock_qty) {
+      setError({ key: "pos.notEnoughStock" });
+      return;
+    }
+
+    const nextQty = target.qty + 1;
+    const pricing = computeFefoPricing(target.batches, target.regularPrice, nextQty);
+
     setCart((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          if (item.qty + 1 > item.stock_qty) {
-            setError({ key: "pos.notEnoughStock" });
-            return item;
-          }
-          return { ...item, qty: item.qty + 1 };
-        }
-        return item;
-      })
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              qty: nextQty,
+              price: pricing.effectiveUnitPrice,
+              lineTotal: pricing.lineTotal,
+              hasDiscount: pricing.hasDiscount,
+              discountedUnits: pricing.discountedUnits,
+            }
+          : item
+      )
     );
   };
 
@@ -181,9 +303,24 @@ export default function POSPage() {
     setError(null);
     setCart((prev) =>
       prev
-        .map((item) =>
-          item.id === id ? { ...item, qty: item.qty - 1 } : item
-        )
+        .map((item) => {
+          if (item.id !== id) return item;
+          const nextQty = item.qty - 1;
+          if (nextQty <= 0) return { ...item, qty: 0 };
+          const pricing = computeFefoPricing(
+            item.batches,
+            item.regularPrice,
+            nextQty
+          );
+          return {
+            ...item,
+            qty: nextQty,
+            price: pricing.effectiveUnitPrice,
+            lineTotal: pricing.lineTotal,
+            hasDiscount: pricing.hasDiscount,
+            discountedUnits: pricing.discountedUnits,
+          };
+        })
         .filter((item) => item.qty > 0)
     );
   };
@@ -199,7 +336,7 @@ export default function POSPage() {
       return;
     }
     localStorage.setItem("cart", JSON.stringify(cart));
-    localStorage.setItem("totalPrice", totalPrice.toString());
+    localStorage.setItem("totalPrice", totalPrice.toFixed(2));
     router.push("/receipt");
   };
 
@@ -291,14 +428,34 @@ export default function POSPage() {
                 <div key={item.id} className="bg-white p-3.5 rounded-xl border border-gray-100">
                   <div className="flex justify-between items-start gap-2 mb-2.5">
                     <div className="min-w-0">
-                      <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-gray-800 text-sm truncate">
+                          {item.name}
+                        </p>
+                        {item.hasDiscount && (
+                          <span className="shrink-0 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {isEn ? "Special" : "ราคาพิเศษ"}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-400 tabular-nums mt-0.5">
-                        {t("pos.perUnit", { price: item.price.toFixed(2) })}
+                        {item.hasDiscount && item.price < item.regularPrice ? (
+                          <>
+                            <span className="line-through mr-1.5">
+                              ฿{item.regularPrice.toFixed(2)}
+                            </span>
+                            <span className="text-emerald-600 font-semibold">
+                              {t("pos.perUnit", { price: item.price.toFixed(2) })}
+                            </span>
+                          </>
+                        ) : (
+                          t("pos.perUnit", { price: item.price.toFixed(2) })
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="font-bold text-gray-800 text-sm tabular-nums">
-                        ฿{(item.price * item.qty).toFixed(2)}
+                        ฿{item.lineTotal.toFixed(2)}
                       </span>
                       <button
                         type="button"

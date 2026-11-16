@@ -3,26 +3,44 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { useI18n } from "../lib/i18n";
+import { bkkDate } from "../lib/dates";
 
 interface CartItem {
   id: string;
   name: string;
   price: number;
-  cost: number;
+  regularPrice?: number;
+  lineTotal?: number;
+  cost?: number;
   qty: number;
   barcode: string;
   stock_qty: number;
+  hasDiscount?: boolean;
+}
+
+interface DeductedSlice {
+  quantity: number;
+  price_sold: number;
 }
 
 type PaymentMethod = "cash" | "transfer" | null;
 type PaymentStatus = "pending" | "saving" | "paid";
 
-async function deductStockFEFO(productId: string, qtyToDeduct: number) {
+// Deducts stock in FEFO order from non-expired batches only, and returns the
+// exact unit prices sold per batch slice so order_items matches POS pricing.
+async function deductStockFEFO(
+  productId: string,
+  qtyToDeduct: number,
+  regularPrice: number
+): Promise<DeductedSlice[]> {
+  const todayBkk = bkkDate(0);
+
   const { data: batches, error } = await supabase
     .from("stock_batches")
-    .select("id, quantity, expiration_date")
+    .select("id, quantity, expiration_date, special_price")
     .eq("product_id", productId)
     .gt("quantity", 0)
+    .or(`expiration_date.is.null,expiration_date.gte.${todayBkk}`)
     .order("expiration_date", { ascending: true, nullsFirst: false });
 
   if (error) {
@@ -30,6 +48,7 @@ async function deductStockFEFO(productId: string, qtyToDeduct: number) {
   }
 
   let remaining = qtyToDeduct;
+  const slicesByPrice = new Map<number, number>();
 
   for (const batch of batches ?? []) {
     if (remaining <= 0) break;
@@ -46,6 +65,12 @@ async function deductStockFEFO(productId: string, qtyToDeduct: number) {
       throw new Error(`ไม่สามารถตัดสต็อกได้: ${updateError.message}`);
     }
 
+    const unitPrice = batch.special_price ?? regularPrice;
+    slicesByPrice.set(
+      unitPrice,
+      (slicesByPrice.get(unitPrice) ?? 0) + deductFromThisBatch
+    );
+
     remaining -= deductFromThisBatch;
   }
 
@@ -53,12 +78,23 @@ async function deductStockFEFO(productId: string, qtyToDeduct: number) {
     console.warn(
       `สต็อกไม่พอสำหรับสินค้า ${productId}: ขาดอีก ${remaining} ชิ้น`
     );
+    slicesByPrice.set(
+      regularPrice,
+      (slicesByPrice.get(regularPrice) ?? 0) + remaining
+    );
   }
+
+  return Array.from(slicesByPrice.entries()).map(([price_sold, quantity]) => ({
+    price_sold,
+    quantity,
+  }));
 }
 
 export default function ReceiptPage() {
   const { t, locale } = useI18n();
+  const isEn = locale.startsWith("en");
   const router = useRouter();
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [total, setTotal] = useState(0);
   const [cashReceived, setCashReceived] = useState("");
@@ -78,14 +114,18 @@ export default function ReceiptPage() {
   // คำนวณเงินทอนทันทีที่พิมพ์ ไม่ต้องกดปุ่มคำนวณเพิ่ม และการ์ดไม่กระตุกขึ้นลง
   const parsedReceived = parseFloat(cashReceived);
   const hasCashInput = cashReceived.trim() !== "" && !isNaN(parsedReceived);
-  const isCashEnough = hasCashInput && parsedReceived >= total;
+  const isCashEnough =
+    hasCashInput && Number.isFinite(parsedReceived) && parsedReceived >= total;
   const change = isCashEnough ? parsedReceived - total : null;
 
   const canConfirm =
-    paymentMethod === "transfer" ||
-    (paymentMethod === "cash" && isCashEnough);
+    cart.length > 0 &&
+    (paymentMethod === "transfer" ||
+      (paymentMethod === "cash" && isCashEnough));
 
   const handleConfirmPayment = async () => {
+    if (cart.length === 0) return;
+
     if (!paymentMethod) {
       alert(t("receipt.selectPaymentFirst"));
       return;
@@ -98,6 +138,25 @@ export default function ReceiptPage() {
     setPaymentStatus("saving");
 
     try {
+      // 1. ดึงราคาปกติและต้นทุนจริงล่าสุดจากตาราง products เพื่อให้กำไรใน Dashboard ถูกต้อง
+      const productIds = Array.from(new Set(cart.map((item) => item.id)));
+      const { data: productRows, error: productsError } = await supabase
+        .from("products")
+        .select("id, price, cost")
+        .in("id", productIds);
+
+      if (productsError) {
+        alert(t("receipt.saveOrderError", { message: productsError.message }));
+        setPaymentStatus("pending");
+        return;
+      }
+
+      const productMap = new Map<string, { price: number; cost: number }>();
+      for (const p of productRows ?? []) {
+        productMap.set(p.id, { price: p.price ?? 0, cost: p.cost ?? 0 });
+      }
+
+      // 2. สร้างหัวบิลในตาราง orders
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -115,15 +174,35 @@ export default function ReceiptPage() {
         return;
       }
 
-      const orderItems = cart.map((item) => ({
-        order_id: order.id,
-        product_id: item.id,
-        product_name: item.name,
-        quantity: item.qty,
-        price_sold: item.price,
-        cost_sold: item.cost ?? 0,
-      }));
+      // 3. ตัดสต็อกแบบ FEFO (เฉพาะล็อตที่ยังไม่หมดอายุ) และแตก order_items ตามราคาขายจริงของแต่ละล็อต
+      const orderItems: {
+        order_id: string;
+        product_id: string;
+        product_name: string;
+        quantity: number;
+        price_sold: number;
+        cost_sold: number;
+      }[] = [];
 
+      for (const item of cart) {
+        const dbProduct = productMap.get(item.id);
+        const regularPrice = dbProduct?.price ?? item.regularPrice ?? item.price;
+        const costSold = dbProduct?.cost ?? item.cost ?? 0;
+
+        const slices = await deductStockFEFO(item.id, item.qty, regularPrice);
+        for (const slice of slices) {
+          orderItems.push({
+            order_id: order.id,
+            product_id: item.id,
+            product_name: item.name,
+            quantity: slice.quantity,
+            price_sold: slice.price_sold,
+            cost_sold: costSold,
+          });
+        }
+      }
+
+      // 4. บันทึกรายการสินค้าลง order_items
       const { error: itemsError } = await supabase
         .from("order_items")
         .insert(orderItems);
@@ -134,14 +213,11 @@ export default function ReceiptPage() {
         return;
       }
 
-      for (const item of cart) {
-        await deductStockFEFO(item.id, item.qty);
-      }
-
       setOrderId(order.id);
       setPaymentStatus("paid");
       localStorage.removeItem("cart");
       localStorage.removeItem("totalPrice");
+      window.dispatchEvent(new Event("alerts:refresh"));
     } catch (err) {
       console.error(err);
       alert(t("receipt.unexpectedError"));
@@ -178,7 +254,7 @@ export default function ReceiptPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 max-w-sm w-full p-6">
 
-        {/* Header: ลดขนาดชื่อร้านให้พอดี เพื่อไม่ให้แย่งสายตาจากยอดรวม */}
+        {/* Header */}
         <div className="text-center mb-5">
           <h1 className="text-lg font-bold text-gray-800">Smart POS</h1>
           <p className="text-gray-400 text-xs mt-0.5">{t("receipt.subtitle")}</p>
@@ -191,7 +267,6 @@ export default function ReceiptPage() {
             )}
           </div>
 
-          {/* แสดงป้ายสถานะเฉพาะตอนจ่ายเงินสำเร็จแล้ว ลดป้ายเหลืองที่เกินจำเป็น */}
           {paymentStatus === "paid" && (
             <div className="mt-3">
               <span className="inline-block bg-green-100 text-green-700 text-xs font-bold px-3.5 py-1.5 rounded-full">
@@ -207,24 +282,34 @@ export default function ReceiptPage() {
             <p className="text-center text-gray-400 text-sm">{t("receipt.noItems")}</p>
           ) : (
             <div className="space-y-2.5 max-h-56 overflow-y-auto">
-              {cart.map((item) => (
-                <div key={item.id} className="flex justify-between items-baseline gap-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="text-gray-800 truncate">{item.name}</p>
-                    <p className="text-gray-400 text-xs tabular-nums">
-                      ฿{item.price.toFixed(2)} x {item.qty}
+              {cart.map((item) => {
+                const itemTotal = item.lineTotal ?? item.price * item.qty;
+                return (
+                  <div key={item.id} className="flex justify-between items-baseline gap-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-gray-800 truncate">{item.name}</p>
+                        {item.hasDiscount && (
+                          <span className="shrink-0 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {isEn ? "Special" : "ราคาพิเศษ"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-xs tabular-nums">
+                        ฿{item.price.toFixed(2)} x {item.qty}
+                      </p>
+                    </div>
+                    <p className="font-medium text-gray-800 tabular-nums shrink-0">
+                      ฿{itemTotal.toFixed(2)}
                     </p>
                   </div>
-                  <p className="font-medium text-gray-800 tabular-nums shrink-0">
-                    ฿{(item.price * item.qty).toFixed(2)}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* ยอดรวม: ทำให้เป็นจุดเด่นที่สุดบนใบเสร็จ */}
+        {/* ยอดรวม */}
         <div className="border-t border-dashed border-gray-200 pt-4">
           <div className="flex justify-between items-baseline">
             <span className="text-sm font-medium text-gray-600">{t("receipt.total")}</span>
@@ -281,7 +366,6 @@ export default function ReceiptPage() {
                   onChange={(e) => setCashReceived(e.target.value)}
                 />
 
-                {/* แสดงสถานะเงินทอนตลอดเวลาในความสูงคงที่ การ์ดไม่กระตุก */}
                 <div
                   className={`flex justify-between items-center text-sm px-4 py-2.5 rounded-xl tabular-nums ${
                     isCashEnough

@@ -21,10 +21,6 @@ export default function UserManagementPage() {
   const [form, setForm] = useState({ email: "", password: "", role: "cashier" });
   const [errors, setErrors] = useState<Partial<Record<string, TKey>>>({});
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
   const fetchUsers = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -39,6 +35,10 @@ export default function UserManagementPage() {
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const validate = () => {
     const newErrors: Partial<Record<string, TKey>> = {};
@@ -59,10 +59,21 @@ export default function UserManagementPage() {
 
     setSaving(true);
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const res = await fetch("/api/create-user", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          role: form.role,
+        }),
       });
 
       const result = await res.json();
@@ -120,7 +131,6 @@ export default function UserManagementPage() {
       <Navbar role="admin" />
 
       <div className="max-w-2xl mx-auto px-3 py-4 sm:px-6 sm:py-6 space-y-3">
-
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -135,7 +145,11 @@ export default function UserManagementPage() {
                 : t("users.userCount", { n: users.length })}
             </span>
             <button
-              onClick={() => { setShowForm(!showForm); setErrors({}); setShowPassword(false); }}
+              onClick={() => {
+                setShowForm(!showForm);
+                setErrors({});
+                setShowPassword(false);
+              }}
               className={`px-3.5 py-2 rounded-xl text-sm font-bold transition whitespace-nowrap ${
                 showForm
                   ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -225,7 +239,11 @@ export default function UserManagementPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowForm(false); setErrors({}); setShowPassword(false); }}
+                  onClick={() => {
+                    setShowForm(false);
+                    setErrors({});
+                    setShowPassword(false);
+                  }}
                   className="flex-1 sm:flex-none border border-gray-300 text-gray-600 px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
                 >
                   {t("users.cancel")}
@@ -253,14 +271,15 @@ export default function UserManagementPage() {
 
                 return (
                   <div key={user.id} className="p-4 hover:bg-gray-50 transition">
-
                     {/* Row 1: Avatar + Email + Role badge */}
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm ${
-                        user.role === "admin"
-                          ? "bg-blue-100 text-blue-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}>
+                      <div
+                        className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm ${
+                          user.role === "admin"
+                            ? "bg-blue-100 text-blue-600"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
                         {avatarLetter}
                       </div>
 
@@ -269,11 +288,13 @@ export default function UserManagementPage() {
                           <p className="font-semibold text-gray-800 text-sm truncate">
                             {user.email}
                           </p>
-                          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full flex-shrink-0 ${
-                            user.role === "admin"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}>
+                          <span
+                            className={`text-xs font-medium px-2.5 py-0.5 rounded-full flex-shrink-0 ${
+                              user.role === "admin"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
                             {user.role === "admin" ? "Admin" : "Cashier"}
                           </span>
                         </div>
@@ -308,7 +329,6 @@ export default function UserManagementPage() {
                         {t("users.deleteUser")}
                       </button>
                     </div>
-
                   </div>
                 );
               })}

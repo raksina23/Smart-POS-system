@@ -10,29 +10,28 @@ export interface AlertCounts {
 // Dashboard, anywhere else) reads identical numbers instead of each
 // re-implementing (and potentially drifting from) the same logic.
 export async function fetchAlertCounts(): Promise<AlertCounts> {
-  const today = new Date();
-  const in7Days = new Date();
-  in7Days.setDate(today.getDate() + 7);
-  const todayStr = today.toISOString().split("T")[0];
-  const in7DaysStr = in7Days.toISOString().split("T")[0];
-
   // --- Expiring soon: batches with stock left, expiring within 7 days ---
-  const { data: expiringBatches, error: expiringError } = await supabase
+  const { count: expiringCount, error: expiringError } = await supabase
     .from("stock_batches")
     .select("id, products!inner ( is_active )", { count: "exact", head: true })
     .eq("products.is_active", true)
     .gt("quantity", 0)
-    .lte("expiration_date", bkkDate(7))
+    .lte("expiration_date", bkkDate(7));
 
   // --- Low stock: total <= min_stock AND no backup batch left ---
   const { data: allProducts, error: productsError } = await supabase
     .from("products")
-    .select(`id, min_stock, stock_batches ( quantity )`);
+    .select("id, min_stock, stock_batches ( quantity )")
+    .eq("is_active", true);
 
   let lowStockCount = 0;
   if (!productsError && allProducts) {
-    for (const p of allProducts as any[]) {
-      const batches: { quantity: number }[] = p.stock_batches ?? [];
+    for (const p of allProducts as {
+      id: string;
+      min_stock: number;
+      stock_batches: { quantity: number }[] | null;
+    }[]) {
+      const batches = p.stock_batches ?? [];
       const stockQty = batches.reduce((sum, b) => sum + b.quantity, 0);
       const activeBatchCount = batches.filter((b) => b.quantity > 0).length;
       if (stockQty <= p.min_stock && activeBatchCount <= 1) {
@@ -42,7 +41,7 @@ export async function fetchAlertCounts(): Promise<AlertCounts> {
   }
 
   return {
-    expiringCount: !expiringError && expiringBatches ? expiringBatches.length : 0,
+    expiringCount: !expiringError && expiringCount !== null ? expiringCount : 0,
     lowStockCount,
   };
 }

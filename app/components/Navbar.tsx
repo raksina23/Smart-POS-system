@@ -5,6 +5,7 @@ import { fetchAlertCounts, AlertCounts } from "../lib/alerts";
 import { useI18n } from "../lib/i18n";
 import { TKey } from "../lib/dictionaries";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { supabase } from "../lib/supabase";
 
 type NavLink = { labelKey: TKey; path: string };
 
@@ -161,10 +162,12 @@ export default function Navbar({ role }: { role: string }) {
     setBellOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("role");
     sessionStorage.removeItem("alertsPopupShown");
-    router.push("/");
     setMenuOpen(false);
+    router.push("/");
   };
 
   const goToDashboard = () => {

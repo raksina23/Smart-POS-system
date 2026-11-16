@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "../../components/Navbar";
 import { supabase } from "../../lib/supabase";
@@ -20,53 +20,93 @@ interface Order {
   change: number;
   payment_type: string;
   created_at: string;
-  order_items: OrderItem[];
+  order_items: OrderItem[] | null;
+}
+
+// Supabase returns `timestamp without time zone` in UTC without a trailing 'Z'.
+// Normalize it as UTC first so `Asia/Bangkok` conversion is always accurate.
+function parseUtcDate(dateStr: string): Date {
+  const trimmed = dateStr.trim();
+  const hasTimeZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed);
+  const normalized = hasTimeZone
+    ? trimmed
+    : `${trimmed.replace(" ", "T")}Z`;
+  return new Date(normalized);
 }
 
 export default function OrderDetailPage() {
   const { t, locale } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
 
   const [order, setOrder] = useState<Order | null>(null);
+  const [role, setRole] = useState<string>("cashier");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOrder = async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          id,
-          total_amount,
-          cash_received,
-          change,
-          payment_type,
-          created_at,
-          order_items (
-            id,
-            product_name,
-            quantity,
-            price_sold,
-            cost_sold
-          )
-        `)
-        .eq("id", id)
-        .single();
+    if (!id) return;
 
-      if (error || !data) {
-        console.error("Error fetching order:", error?.message);
-        alert(t("orderDetail.notFound"));
+    const initPage = async () => {
+      setLoading(true);
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        router.push("/");
+        return;
+      }
+
+      const [profileRes, orderRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("orders")
+          .select(`
+            id,
+            total_amount,
+            cash_received,
+            change,
+            payment_type,
+            created_at,
+            order_items (
+              id,
+              product_name,
+              quantity,
+              price_sold,
+              cost_sold
+            )
+          `)
+          .eq("id", id)
+          .single(),
+      ]);
+
+      if (!profileRes.error && profileRes.data?.role) {
+        setRole(profileRes.data.role.toLowerCase());
+      }
+
+      if (orderRes.error || !orderRes.data) {
+        console.error("Error fetching order:", orderRes.error?.message);
+        alert(tRef.current("orderDetail.notFound"));
         router.push("/history");
         return;
       }
 
-      setOrder(data);
+      setOrder(orderRes.data as Order);
       setLoading(false);
     };
 
-    fetchOrder();
-  }, [id]);
+    initPage();
+  }, [id, router]);
 
   const paymentLabel: Record<string, string> = {
     cash: t("orderDetail.paymentCash"),
@@ -76,7 +116,7 @@ export default function OrderDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar role="Admin" />
+        <Navbar role={role} />
         <div className="flex items-center justify-center h-64">
           <p className="text-gray-400">{t("common.loading")}</p>
         </div>
@@ -86,23 +126,26 @@ export default function OrderDetailPage() {
 
   if (!order) return null;
 
-  const dateStr = new Date(order.created_at).toLocaleDateString(locale, {
+  const parsedCreatedAt = parseUtcDate(order.created_at);
+  const dateStr = parsedCreatedAt.toLocaleDateString(locale, {
     timeZone: "Asia/Bangkok",
   });
-  const timeStr = new Date(order.created_at).toLocaleTimeString(locale, {
+  const timeStr = parsedCreatedAt.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Bangkok",
   });
 
-  const totalProfit = order.order_items.reduce(
-    (sum, item) => sum + (item.price_sold - item.cost_sold) * item.quantity,
+  const items = order.order_items ?? [];
+  const totalProfit = items.reduce(
+    (sum, item) =>
+      sum + ((item.price_sold ?? 0) - (item.cost_sold ?? 0)) * item.quantity,
     0
   );
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      <Navbar role="Admin" />
+      <Navbar role={role} />
       <div className="max-w-2xl mx-auto p-4 md:p-6">
 
         {/* Header */}
@@ -153,7 +196,7 @@ export default function OrderDetailPage() {
               <div>
                 <p className="text-xs text-gray-400">{t("orderDetail.changeLabel")}</p>
                 <p className="font-medium text-gray-700 mt-0.5">
-                  ฿{order.change.toFixed(2)}
+                  ฿{(order.change ?? 0).toFixed(2)}
                 </p>
               </div>
             )}
@@ -163,12 +206,12 @@ export default function OrderDetailPage() {
         {/* รายการสินค้า */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4">
           <h2 className="text-sm font-bold text-gray-600 mb-3">
-            {order.order_items.length === 1
-              ? t("orderDetail.itemsHeaderOne", { n: order.order_items.length })
-              : t("orderDetail.itemsHeader", { n: order.order_items.length })}
+            {items.length === 1
+              ? t("orderDetail.itemsHeaderOne", { n: items.length })
+              : t("orderDetail.itemsHeader", { n: items.length })}
           </h2>
           <div className="space-y-3">
-            {order.order_items.map((item) => (
+            {items.map((item) => (
               <div
                 key={item.id}
                 className="flex justify-between items-baseline text-sm py-2 border-b border-gray-50 last:border-0"
@@ -194,7 +237,7 @@ export default function OrderDetailPage() {
               {t("orderDetail.totalSales")}
             </span>
             <span className="text-xl font-bold text-blue-600">
-              ฿{order.total_amount.toFixed(2)}
+              ฿{(order.total_amount ?? 0).toFixed(2)}
             </span>
           </div>
           <div className="flex justify-between items-baseline pt-2.5 border-t border-gray-100">
@@ -210,6 +253,7 @@ export default function OrderDetailPage() {
         {/* ปุ่ม */}
         <div className="space-y-3">
           <button
+            type="button"
             onClick={() => router.push("/history")}
             className="w-full border border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition"
           >

@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { useI18n } from "../lib/i18n";
 
 interface OrderItem {
+  product_id?: string | null;
   product_name: string;
   quantity: number;
   price_sold: number;
@@ -16,52 +17,90 @@ interface Order {
   total_amount: number;
   payment_type: string;
   created_at: string;
-  order_items: OrderItem[];
+  order_items: OrderItem[] | null;
+}
+
+// Supabase returns `timestamp without time zone` in UTC without a trailing 'Z'.
+// Normalize it as UTC first so `Asia/Bangkok` conversion is always accurate.
+function parseUtcDate(dateStr: string): Date {
+  const trimmed = dateStr.trim();
+  const hasTimeZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed);
+  const normalized = hasTimeZone
+    ? trimmed
+    : `${trimmed.replace(" ", "T")}Z`;
+  return new Date(normalized);
 }
 
 export default function SalesHistoryPage() {
   const { t, locale } = useI18n();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [role, setRole] = useState<string>("cashier");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const initPage = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          id,
-          total_amount,
-          payment_type,
-          created_at,
-          order_items (
-            product_name,
-            quantity,
-            price_sold
-          )
-        `)
-        .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching orders:", error.message);
-      } else {
-        setOrders(data || []);
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        router.push("/");
+        return;
       }
+
+      const [profileRes, ordersRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("orders")
+          .select(`
+            id,
+            total_amount,
+            payment_type,
+            created_at,
+            order_items (
+              product_id,
+              product_name,
+              quantity,
+              price_sold
+            )
+          `)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (!profileRes.error && profileRes.data?.role) {
+        setRole(profileRes.data.role.toLowerCase());
+      }
+
+      if (ordersRes.error) {
+        console.error("Error fetching orders:", ordersRes.error.message);
+      } else {
+        setOrders((ordersRes.data as Order[]) || []);
+      }
+
       setLoading(false);
     };
 
-    fetchOrders();
-  }, []);
+    initPage();
+  }, [router]);
 
   const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
   orders.forEach((order) => {
-    order.order_items.forEach((item) => {
-      if (productSales[item.product_name]) {
-        productSales[item.product_name].qty += item.quantity;
-        productSales[item.product_name].revenue += item.quantity * item.price_sold;
+    (order.order_items ?? []).forEach((item) => {
+      const key = item.product_id || item.product_name;
+      if (productSales[key]) {
+        productSales[key].name = item.product_name;
+        productSales[key].qty += item.quantity;
+        productSales[key].revenue += item.quantity * item.price_sold;
       } else {
-        productSales[item.product_name] = {
+        productSales[key] = {
           name: item.product_name,
           qty: item.quantity,
           revenue: item.quantity * item.price_sold,
@@ -77,12 +116,12 @@ export default function SalesHistoryPage() {
   const maxQty = top5[0]?.qty || 1;
 
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
+    const d = parseUtcDate(dateStr);
     return d.toLocaleDateString(locale, { timeZone: "Asia/Bangkok" });
   };
 
   const formatTime = (dateStr: string) => {
-    const d = new Date(dateStr);
+    const d = parseUtcDate(dateStr);
     return d.toLocaleTimeString(locale, {
       hour: "2-digit",
       minute: "2-digit",
@@ -97,7 +136,7 @@ export default function SalesHistoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      <Navbar role="Admin" />
+      <Navbar role={role} />
       <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
 
         <h1 className="text-2xl font-bold text-gray-800">
@@ -118,7 +157,7 @@ export default function SalesHistoryPage() {
                 </h2>
                 <div className="space-y-3.5">
                   {top5.map((product, index) => (
-                    <div key={product.name} className="flex items-center gap-3">
+                    <div key={`${product.name}-${index}`} className="flex items-center gap-3">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold tabular-nums flex-shrink-0 ${
                         index === 0 ? "bg-amber-100 text-amber-700" :
                         index === 1 ? "bg-gray-100 text-gray-600" :
@@ -170,40 +209,47 @@ export default function SalesHistoryPage() {
               ) : (
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
                   <div className="divide-y divide-gray-100">
-                    {orders.map((order) => (
-                      <div
-                        key={order.id}
-                        onClick={() => router.push(`/history/${order.id}`)}
-                        className="p-4 flex justify-between items-center hover:bg-gray-50 cursor-pointer gap-2 active:bg-gray-100 transition"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-800 font-mono text-sm">
-                            #{order.id.slice(0, 8).toUpperCase()}
-                          </p>
-                          <p className="text-xs text-gray-500 tabular-nums mt-1">
-                            {formatDate(order.created_at)} • {formatTime(order.created_at)}
-                          </p>
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full mt-1.5 inline-block">
-                            {paymentLabel[order.payment_type] ?? order.payment_type}
-                          </span>
-                        </div>
-                        <div className="text-right flex-shrink-0 flex items-center gap-3">
-                          <div className="tabular-nums">
-                            <p className="font-bold text-blue-600 text-lg">
-                              ฿{order.total_amount.toFixed(2)}
+                    {orders.map((order) => {
+                      const items = order.order_items ?? [];
+                      const distinctItemCount =
+                        new Set(items.map((i) => i.product_id || i.product_name)).size ||
+                        items.length;
+
+                      return (
+                        <div
+                          key={order.id}
+                          onClick={() => router.push(`/history/${order.id}`)}
+                          className="p-4 flex justify-between items-center hover:bg-gray-50 cursor-pointer gap-2 active:bg-gray-100 transition"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-800 font-mono text-sm">
+                              #{order.id.slice(0, 8).toUpperCase()}
                             </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {order.order_items.length === 1
-                                ? t("history.itemCountOne", { n: order.order_items.length })
-                                : t("history.itemCount", { n: order.order_items.length })}
+                            <p className="text-xs text-gray-500 tabular-nums mt-1">
+                              {formatDate(order.created_at)} • {formatTime(order.created_at)}
                             </p>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full mt-1.5 inline-block">
+                              {paymentLabel[order.payment_type] ?? order.payment_type}
+                            </span>
                           </div>
-                          <svg className="w-4 h-4 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <path d="M6 3.5L10.5 8L6 12.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
+                          <div className="text-right flex-shrink-0 flex items-center gap-3">
+                            <div className="tabular-nums">
+                              <p className="font-bold text-blue-600 text-lg">
+                                ฿{order.total_amount.toFixed(2)}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {distinctItemCount === 1
+                                  ? t("history.itemCountOne", { n: distinctItemCount })
+                                  : t("history.itemCount", { n: distinctItemCount })}
+                              </p>
+                            </div>
+                            <svg className="w-4 h-4 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <path d="M6 3.5L10.5 8L6 12.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

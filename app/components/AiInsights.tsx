@@ -29,9 +29,40 @@ type ShelfItem = {
 
 type Rec = {
   content: string;
-  source_data: any[];
+  source_data: unknown[];
   created_at: string;
 } | null;
+
+type BulletBlock = {
+  type: "bullet";
+  title: string;
+  badge?: string;
+  note?: string;
+  urgent?: boolean;
+};
+
+type NonBulletBlock =
+  | { type: "summary"; text: string }
+  | { type: "heading"; text: string }
+  | { type: "paused"; label: string; items: string[] }
+  | { type: "paragraph"; text: string };
+
+type Block = BulletBlock | NonBulletBlock;
+
+type GroupedBlock =
+  | NonBulletBlock
+  | { type: "bulletGroup"; items: BulletBlock[] };
+
+const INITIAL_VISIBLE_COUNT = 3;
+
+function parseUtcDate(dateStr: string): Date {
+  const trimmed = dateStr.trim();
+  const hasTimeZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed);
+  const normalized = hasTimeZone
+    ? trimmed
+    : `${trimmed.replace(" ", "T")}Z`;
+  return new Date(normalized);
+}
 
 function SparklesIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -63,6 +94,20 @@ function BoxIcon({ className = "w-6 h-6" }: { className?: string }) {
   );
 }
 
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      className={`w-4 h-4 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M5 7.5L10 12.5L15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function PctBar({ label, pct }: { label: string; pct: number }) {
   return (
     <div>
@@ -80,8 +125,239 @@ function PctBar({ label, pct }: { label: string; pct: number }) {
   );
 }
 
+function BulletGroupList({
+  items,
+  isEn,
+}: {
+  items: BulletBlock[];
+  isEn: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = items.length > INITIAL_VISIBLE_COUNT;
+  const visibleItems = expanded ? items : items.slice(0, INITIAL_VISIBLE_COUNT);
+  const hiddenCount = items.length - INITIAL_VISIBLE_COUNT;
+
+  return (
+    <div className="space-y-2">
+      {visibleItems.map((item, j) => (
+        <div
+          key={j}
+          className="bg-white/95 rounded-xl px-3.5 py-2.5 border border-purple-100/80 flex items-center justify-between gap-3"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-800 leading-snug break-words">
+              {item.title}
+            </p>
+            {item.note && (
+              <p
+                className={`text-xs mt-0.5 tabular-nums ${
+                  item.urgent
+                    ? "text-amber-600 font-semibold"
+                    : "text-gray-500"
+                }`}
+              >
+                {item.note}
+              </p>
+            )}
+          </div>
+
+          {item.badge && (
+            <span className="shrink-0 bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-full tabular-nums">
+              {item.badge}
+            </span>
+          )}
+        </div>
+      ))}
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white text-purple-700 border border-purple-200/70 text-xs font-bold transition flex items-center justify-center gap-1.5"
+        >
+          <span>
+            {expanded
+              ? isEn
+                ? "Show less"
+                : "ย่อรายการ"
+              : isEn
+              ? `Show ${hiddenCount} more`
+              : `ดูเพิ่มเติมอีก ${hiddenCount} รายการ`}
+          </span>
+          <ChevronIcon expanded={expanded} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Parses plain-text AI output into clean summary, scannable item cards, and paused pills
+function FormattedRecommendation({
+  content,
+  isEn,
+}: {
+  content: string;
+  isEn: boolean;
+}) {
+  const lines = content
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const blocks: Block[] = [];
+
+  lines.forEach((line, idx) => {
+    // 1. Paused / no-sales line
+    if (line.startsWith("⏸")) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx !== -1) {
+        const label = line.slice(0, colonIdx).trim();
+        const items = line
+          .slice(colonIdx + 1)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        blocks.push({ type: "paused", label, items });
+        return;
+      }
+    }
+
+    // 2. Bullet item
+    if (/^[-•]\s+/.test(line)) {
+      const raw = line.replace(/^[-•]\s+/, "").trim();
+      const dashMatch = raw.match(/^(.+?)\s*(?:—|–|\s-\s)\s*(.+)$/);
+
+      if (dashMatch) {
+        const title = dashMatch[1].trim();
+        const rest = dashMatch[2].trim();
+        const parenMatch = rest.match(/^(.+?)\s*\(([^()]+)\)$/);
+
+        if (parenMatch) {
+          const badge = parenMatch[1].trim();
+          const note = parenMatch[2].trim();
+          const urgentMatch = note.match(/\b([0-7])\s*(?:days?|วัน)/i);
+          blocks.push({
+            type: "bullet",
+            title,
+            badge,
+            note,
+            urgent: Boolean(urgentMatch),
+          });
+        } else {
+          blocks.push({
+            type: "bullet",
+            title,
+            note: rest,
+          });
+        }
+      } else {
+        blocks.push({ type: "bullet", title: raw });
+      }
+      return;
+    }
+
+    // 3. First non-bullet line acts as headline summary
+    if (idx === 0) {
+      blocks.push({ type: "summary", text: line });
+      return;
+    }
+
+    // 4. Section subheading
+    if (/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(line) || line.endsWith(":")) {
+      blocks.push({ type: "heading", text: line });
+      return;
+    }
+
+    blocks.push({ type: "paragraph", text: line });
+  });
+
+  // Group consecutive bullets
+  const grouped: GroupedBlock[] = [];
+  for (const b of blocks) {
+    if (b.type === "bullet") {
+      const last = grouped[grouped.length - 1];
+      if (last && last.type === "bulletGroup") {
+        last.items.push(b);
+      } else {
+        grouped.push({ type: "bulletGroup", items: [b] });
+      }
+    } else {
+      grouped.push(b);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {grouped.map((block, i) => {
+        if (block.type === "summary") {
+          return (
+            <p
+              key={i}
+              className="text-sm sm:text-base font-bold text-gray-800 leading-snug"
+            >
+              {block.text}
+            </p>
+          );
+        }
+
+        if (block.type === "heading") {
+          return (
+            <p
+              key={i}
+              className="text-xs font-bold uppercase tracking-wide text-purple-800 pt-1"
+            >
+              {block.text}
+            </p>
+          );
+        }
+
+        if (block.type === "bulletGroup") {
+          return <BulletGroupList key={i} items={block.items} isEn={isEn} />;
+        }
+
+        if (block.type === "paused") {
+          return (
+            <div
+              key={i}
+              className="bg-white/70 rounded-xl p-3 border border-purple-100/70 space-y-2"
+            >
+              <p className="text-xs font-medium text-gray-500 leading-snug">
+                {block.label}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {block.items.map((name, j) => (
+                  <span
+                    key={j}
+                    className="inline-block bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-1 rounded-lg break-words"
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        if (block.type === "paragraph") {
+          return (
+            <p
+              key={i}
+              className="text-sm text-gray-700 leading-relaxed break-words"
+            >
+              {block.text}
+            </p>
+          );
+        }
+
+        return null;
+      })}
+    </div>
+  );
+}
+
 export default function AiInsights() {
   const { t, locale } = useI18n();
+  const isEn = locale.startsWith("en");
 
   const [recs, setRecs] = useState<{
     purchase: Rec;
@@ -92,6 +368,8 @@ export default function AiInsights() {
   });
 
   const [busy, setBusy] = useState<Kind | null>(null);
+  const [showAllPurchase, setShowAllPurchase] = useState(false);
+  const [showAllShelf, setShowAllShelf] = useState(false);
   const [error, setError] = useState<{
     key: TKey;
     vars?: Record<string, string | number>;
@@ -133,6 +411,8 @@ export default function AiInsights() {
     try {
       await call("POST", kind);
       setRecs(await call("GET"));
+      if (kind === "purchase") setShowAllPurchase(false);
+      if (kind === "shelf") setShowAllShelf(false);
     } catch (e) {
       const msg = (e as Error).message;
       if (msg === "NO_FREQUENT_PAIRS") {
@@ -209,13 +489,12 @@ export default function AiInsights() {
             <>
               {/* AI Summary */}
               <div className="bg-purple-50/70 rounded-xl p-4 border border-purple-100">
-                <p className="text-sm font-bold text-purple-700 mb-2">
-                  {t("aiInsights.aiRecommendation")}
+                <p className="text-xs font-bold uppercase tracking-wider text-purple-700 mb-2.5 flex items-center gap-1.5">
+                  <SparklesIcon className="w-4 h-4 shrink-0" />
+                  <span>{t("aiInsights.aiRecommendation")}</span>
                 </p>
 
-                <p className="text-base text-gray-700 leading-relaxed whitespace-pre-line break-words">
-                  {rec.content}
-                </p>
+                <FormattedRecommendation content={rec.content} isEn={isEn} />
               </div>
 
               {/* Purchase Plan */}
@@ -232,58 +511,100 @@ export default function AiInsights() {
                   </div>
 
                   {(() => {
-                    const items = (rec.source_data as PurchaseItem[])
+                    const allItems = (rec.source_data as PurchaseItem[])
                       .filter((r) => r.suggested_qty > 0)
-                      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999))
-                      .slice(0, 5);
+                      .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999));
 
-                    return items.length > 0 ? (
-                      <div className="overflow-x-auto rounded-xl border border-gray-100">
-                        <table className="w-full text-sm text-left min-w-[440px]">
-                          <thead className="bg-gray-50 text-gray-600">
-                            <tr>
-                              <th className="px-3.5 py-3 font-bold">
-                                {t("aiInsights.colProduct")}
-                              </th>
-                              <th className="px-3.5 py-3 font-bold text-center">
-                                {t("aiInsights.colDaysLeft")}
-                              </th>
-                              <th className="px-3.5 py-3 font-bold text-center">
-                                {t("aiInsights.colStock")}
-                              </th>
-                              <th className="px-3.5 py-3 font-bold text-center">
-                                {t("aiInsights.colSuggest")}
-                              </th>
-                            </tr>
-                          </thead>
+                    const hasMore = allItems.length > INITIAL_VISIBLE_COUNT;
+                    const visibleItems = showAllPurchase
+                      ? allItems
+                      : allItems.slice(0, INITIAL_VISIBLE_COUNT);
+                    const hiddenCount = allItems.length - INITIAL_VISIBLE_COUNT;
 
-                          <tbody>
-                            {items.map((r) => (
-                              <tr
-                                key={r.product_id}
-                                className="border-t border-gray-100 hover:bg-purple-50/40 transition"
-                              >
-                                <td className="px-3.5 py-3.5 font-semibold text-gray-800">
-                                  {r.name}
-                                </td>
-
-                                <td className="px-3.5 py-3.5 text-center text-gray-600 tabular-nums">
-                                  {r.days_left != null
-                                    ? t("aiInsights.daysLeft", { n: r.days_left })
-                                    : "-"}
-                                </td>
-
-                                <td className="px-3.5 py-3.5 text-center text-gray-600 tabular-nums">
-                                  {r.current_stock}
-                                </td>
-
-                                <td className="px-3.5 py-3.5 text-center font-bold text-purple-600 tabular-nums">
-                                  +{r.suggested_qty}
-                                </td>
+                    return allItems.length > 0 ? (
+                      <div className="space-y-2.5">
+                        <div className="overflow-x-auto rounded-xl border border-gray-100">
+                          <table className="w-full text-sm text-left min-w-[440px]">
+                            <thead className="bg-gray-50 text-gray-600">
+                              <tr>
+                                <th className="px-3.5 py-3 font-bold">
+                                  {t("aiInsights.colProduct")}
+                                </th>
+                                <th className="px-3.5 py-3 font-bold text-center">
+                                  {t("aiInsights.colDaysLeft")}
+                                </th>
+                                <th className="px-3.5 py-3 font-bold text-center">
+                                  {t("aiInsights.colStock")}
+                                </th>
+                                <th className="px-3.5 py-3 font-bold text-center">
+                                  {t("aiInsights.colSuggest")}
+                                </th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+
+                            <tbody>
+                              {visibleItems.map((r) => {
+                                const isUrgent =
+                                  r.days_left != null && r.days_left <= 7;
+                                return (
+                                  <tr
+                                    key={r.product_id}
+                                    className="border-t border-gray-100 hover:bg-purple-50/40 transition"
+                                  >
+                                    <td className="px-3.5 py-3.5 font-semibold text-gray-800">
+                                      {r.name}
+                                    </td>
+
+                                    <td className="px-3.5 py-3.5 text-center tabular-nums">
+                                      {r.days_left != null ? (
+                                        <span
+                                          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                            isUrgent
+                                              ? "bg-amber-100 text-amber-700"
+                                              : "bg-gray-100 text-gray-600"
+                                          }`}
+                                        >
+                                          {t("aiInsights.daysLeft", {
+                                            n: r.days_left,
+                                          })}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </td>
+
+                                    <td className="px-3.5 py-3.5 text-center text-gray-600 tabular-nums">
+                                      {r.current_stock}
+                                    </td>
+
+                                    <td className="px-3.5 py-3.5 text-center font-bold text-purple-600 tabular-nums">
+                                      +{r.suggested_qty}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {hasMore && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPurchase((prev) => !prev)}
+                            className="w-full py-2.5 px-4 rounded-xl bg-purple-50/80 hover:bg-purple-100/80 text-purple-700 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                          >
+                            <span>
+                              {showAllPurchase
+                                ? isEn
+                                  ? "Show less"
+                                  : "ย่อรายการ"
+                                : isEn
+                                ? `Show ${hiddenCount} more items`
+                                : `ดูเพิ่มเติมอีก ${hiddenCount} รายการ`}
+                            </span>
+                            <ChevronIcon expanded={showAllPurchase} />
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-gray-400 text-center py-5 bg-gray-50 rounded-xl">
@@ -317,6 +638,12 @@ export default function AiInsights() {
                       );
                     }
 
+                    const hasMore = pairs.length > INITIAL_VISIBLE_COUNT;
+                    const visiblePairs = showAllShelf
+                      ? pairs
+                      : pairs.slice(0, INITIAL_VISIBLE_COUNT);
+                    const hiddenCount = pairs.length - INITIAL_VISIBLE_COUNT;
+
                     return (
                       <>
                         <p className="text-sm text-gray-500 tabular-nums">
@@ -327,7 +654,7 @@ export default function AiInsights() {
                         </p>
 
                         <div className="space-y-2.5">
-                          {pairs.map((r, i) => (
+                          {visiblePairs.map((r, i) => (
                             <div
                               key={i}
                               className="p-3.5 sm:p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3"
@@ -388,6 +715,25 @@ export default function AiInsights() {
                             </div>
                           ))}
                         </div>
+
+                        {hasMore && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllShelf((prev) => !prev)}
+                            className="w-full py-2.5 px-4 rounded-xl bg-purple-50/80 hover:bg-purple-100/80 text-purple-700 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                          >
+                            <span>
+                              {showAllShelf
+                                ? isEn
+                                  ? "Show less"
+                                  : "ย่อรายการ"
+                                : isEn
+                                ? `Show ${hiddenCount} more pairs`
+                                : `ดูเพิ่มเติมอีก ${hiddenCount} คู่`}
+                            </span>
+                            <ChevronIcon expanded={showAllShelf} />
+                          </button>
+                        )}
                       </>
                     );
                   })()}
@@ -398,7 +744,9 @@ export default function AiInsights() {
               <div className="pt-3 border-t border-gray-100">
                 <p className="text-xs sm:text-sm text-gray-400 tabular-nums">
                   {t("aiInsights.lastAnalyzed", {
-                    date: new Date(rec.created_at).toLocaleString(locale),
+                    date: parseUtcDate(rec.created_at).toLocaleString(locale, {
+                      timeZone: "Asia/Bangkok",
+                    }),
                   })}
                 </p>
               </div>
