@@ -470,6 +470,15 @@ const th = {
   "users.changeRole": "เปลี่ยน Role",
   "users.deleteUser": "ลบผู้ใช้",
   "users.lastAdminWarning": "ไม่สามารถลบหรือเปลี่ยน Role ของ Admin คนสุดท้ายได้",
+    "login.subtitle": "ระบบจัดการหน้าร้านมณีวรรณ",
+    "login.email": "อีเมล",
+    "login.password": "รหัสผ่าน",
+    "login.show": "แสดง",
+    "login.hide": "ซ่อน",
+    "login.submit": "เข้าสู่ระบบ",
+    "login.submitting": "กำลังเข้าสู่ระบบ...",
+    "login.errorInvalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+    "login.errorProfileNotFound": "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อผู้ดูแลระบบ"
 };
 
 export type TKey = keyof typeof th;
@@ -945,6 +954,15 @@ const en: Record<TKey, string> = {
   "users.changeRole": "Change Role",
   "users.deleteUser": "Delete User",
   "users.lastAdminWarning": "Cannot delete or change the role of the last remaining Admin",
+    "login.subtitle": "Maneewan Store Management System",
+"login.email": "Email",
+"login.password": "Password",
+"login.show": "Show",
+"login.hide": "Hide",
+"login.submit": "Log In",
+"login.submitting": "Logging in...",
+"login.errorInvalidCredentials": "Invalid email or password",
+"login.errorProfileNotFound": "User profile not found. Please contact an administrator.",
 };
 
 export const dictionaries: Record<Lang, Record<TKey, string>> = { th, en };
